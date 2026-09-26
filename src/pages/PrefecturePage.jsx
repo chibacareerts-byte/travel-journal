@@ -3,11 +3,12 @@ import { Link, useParams } from 'react-router-dom'
 import BackBar from '../components/BackBar'
 import RecordEntry from '../components/RecordEntry'
 import { getPrefecture } from '../data/prefectures'
+import RecordsGate from '../components/RecordsGate'
 import { useRecords } from '../lib/RecordsContext'
 
 export default function PrefecturePage() {
   const { id } = useParams()
-  const { records } = useRecords()
+  const { records, loading, error } = useRecords()
   const pref = getPrefecture(id)
 
   if (!pref) {
@@ -27,23 +28,25 @@ export default function PrefecturePage() {
       <header className="page-head">
         <p className="eyebrow">{pref.region}</p>
         <h1 className="page-title">{pref.name}</h1>
-        <p className="page-sub">{list.length > 0 ? `${list.length}件の記録` : ''}</p>
+        <p className="page-sub">{!loading && !error && list.length > 0 ? `${list.length}件の記録` : ''}</p>
       </header>
 
-      {list.length === 0 ? (
-        <div className="empty">
-          <p>まだ記録がありません。</p>
-          <Link to={`/new?prefecture=${pref.id}`} className="btn-line">
-            {pref.name}の記録をつける
-          </Link>
-        </div>
-      ) : (
-        <div className="entry-list">
-          {list.map((r) => (
-            <RecordEntry key={r.id} record={r} showPrefecture={false} />
-          ))}
-        </div>
-      )}
+      <RecordsGate>
+        {list.length === 0 ? (
+          <div className="empty">
+            <p>まだ記録がありません。</p>
+            <Link to={`/new?prefecture=${pref.id}`} className="btn-line">
+              {pref.name}の記録をつける
+            </Link>
+          </div>
+        ) : (
+          <div className="entry-list">
+            {list.map((r) => (
+              <RecordEntry key={r.id} record={r} showPrefecture={false} />
+            ))}
+          </div>
+        )}
+      </RecordsGate>
     </div>
   )
 }

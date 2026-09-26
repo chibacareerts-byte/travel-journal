@@ -187,6 +187,10 @@ img {
   gap: 20px;
 }
 
+.empty--tight {
+  padding: 8px var(--gutter) 24px;
+}
+
 .backbar {
   padding: 12px 12px 0;
 }
@@ -256,6 +260,7 @@ img {
   border-color: var(--indigo-sub);
 }
 .tag__x {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -264,6 +269,13 @@ img {
   font-size: 16px;
   line-height: 1;
   color: var(--indigo);
+}
+
+/* 見た目は変えずに、押せる範囲だけを44px程度に広げる */
+.tag__x::after {
+  content: '';
+  position: absolute;
+  inset: -8px -4px;
 }
 
 /* ボタン */
@@ -366,6 +378,7 @@ img {
   padding: 12px var(--gutter) 0;
 }
 .entry__title {
+  overflow-wrap: anywhere;
   font-family: var(--font-serif);
   font-weight: 500;
   font-size: 20px;
@@ -580,6 +593,7 @@ img {
   padding: 24px var(--gutter) 4px;
 }
 .detail__title {
+  overflow-wrap: anywhere;
   font-family: var(--font-serif);
   font-weight: 500;
   font-size: 28px;
@@ -610,14 +624,22 @@ img {
   letter-spacing: 0.04em;
 }
 .facts dd a {
+  position: relative;
   color: var(--indigo);
   border-bottom: 1px solid var(--indigo-sub);
+}
+
+.facts dd a::after {
+  content: '';
+  position: absolute;
+  inset: -12px -8px;
 }
 
 .memo {
   margin-top: 24px;
 }
 .memo__text {
+  overflow-wrap: anywhere;
   margin-top: 10px;
   line-height: 2;
   letter-spacing: 0.04em;
@@ -752,6 +774,11 @@ img {
   letter-spacing: 0.14em;
   background: var(--indigo);
   color: var(--white);
+}
+.photo-picker__remove::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
 }
 .photo-picker__remove {
   position: absolute;
@@ -917,7 +944,7 @@ img {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(14, 27, 43, 0.32), transparent 55%);
+  background: linear-gradient(to top, rgba(14, 27, 43, 0.42), transparent 55%);
   pointer-events: none;
 }
 /* 年号と件数をひとまとまりにして、写真の下端をまたいで置く（中心が写真の下端） */
@@ -1174,7 +1201,11 @@ img {
   text-transform: uppercase;
   color: var(--indigo-sub);
 }
+.pop__plate > div {
+  min-width: 0; /* 長い場所名が、横にはみ出さず折り返されるように */
+}
 .pop__plate-title {
+  overflow-wrap: anywhere;
   font-family: var(--font-serif);
   font-size: 17px;
   line-height: 1.4;

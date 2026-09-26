@@ -34,6 +34,15 @@ export default function RecordFields({ placeName, prefectureId, visitedOn, memo,
           id="placeName"
           className="input"
           value={placeName}
+          enterKeyHint="next"
+          onKeyDown={(e) => {
+            // Enter だけで、フォーム全体が送信（保存）されないようにする。次の欄（都道府県）へ進む。
+            // 日本語入力の変換確定のEnter（isComposing）には触れない
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              document.getElementById('prefecture')?.focus()
+            }
+          }}
           onChange={(e) => onChange('placeName', e.target.value)}
         />
       </div>

@@ -12,20 +12,35 @@ export function RecordsProvider({ children }) {
   const [records, setRecords] = useState([])
   const [tags, setTags] = useState([])
   const [loading, setLoading] = useState(true)
+  // 読み込みに失敗したとき true。「記録が0件」とは別の状態として画面に伝える
+  const [error, setError] = useState(false)
 
-  useEffect(() => {
-    Promise.all([fetchRecords(), fetchTags()])
+  function fetchAll() {
+    return Promise.all([fetchRecords(), fetchTags()])
       .then(([r, t]) => {
         setRecords(sortNewestFirst(r))
         setTags(t)
       })
-      .catch((error) => {
-        // 取得に失敗しても、読み込み中のまま止まらないようにする（記録は空のまま表示する）
-        console.error('記録の取得に失敗しました', error)
-        setTags(DEFAULT_TAGS)
+      .catch((err) => {
+        // 読み込み中のまま止まらないようにし、失敗したことを error で伝える（records は空のまま＝「0件」ではない）
+        console.error('記録の取得に失敗しました', err)
+        setError(true)
+        setTags((prev) => (prev.length > 0 ? prev : DEFAULT_TAGS))
       })
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    fetchAll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 失敗したあと、もう一度読み込む
+  function reload() {
+    setError(false)
+    setLoading(true)
+    fetchAll()
+  }
 
   async function addRecord(input) {
     const created = await createRecord(input)
@@ -72,7 +87,7 @@ export function RecordsProvider({ children }) {
     return clean
   }
 
-  const value = { records, tags, loading, addRecord, addTag, updateRecord, removeRecord }
+  const value = { records, tags, loading, error, reload, addRecord, addTag, updateRecord, removeRecord }
   return <RecordsContext.Provider value={value}>{children}</RecordsContext.Provider>
 }
 

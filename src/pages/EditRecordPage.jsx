@@ -1,22 +1,25 @@
 // 記録の編集。場所名・都道府県・訪問日・写真・メモ・タグを編集できます。
 // 写真は「保存する」を押したときに、はじめて Storage へ保存・削除されます（キャンセルしたら何も変わりません）。
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import BackBar from '../components/BackBar'
 import PhotoEditor from '../components/PhotoEditor'
 import RecordFields from '../components/RecordFields'
+import RecordsGate from '../components/RecordsGate'
 import { useRecords } from '../lib/RecordsContext'
 
 export default function EditRecordPage() {
   const { id } = useParams()
-  const { records, loading } = useRecords()
+  const { records } = useRecords()
   const record = records.find((r) => r.id === id)
 
   if (!record) {
     return (
       <div className="page">
         <BackBar fallback="/records" />
-        <p className="empty">{loading ? '' : '記録が見つかりません。'}</p>
+        <RecordsGate>
+          <p className="empty">記録が見つかりません。</p>
+        </RecordsGate>
       </div>
     )
   }
@@ -27,6 +30,7 @@ export default function EditRecordPage() {
 
 function EditForm({ record }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const { updateRecord } = useRecords()
 
   const [values, setValues] = useState({
@@ -68,7 +72,15 @@ function EditForm({ record }) {
             )
           : undefined,
       })
-      navigate(`/record/${record.id}`, { replace: true })
+      // 詳細画面の［編集］から来たときは、履歴の1つ前が、その記録の詳細画面。
+      // そこへ1つ戻る（replace で詳細を重ねると、「戻る」で同じ詳細がもう一度出てしまう）。
+      // ［編集］の印（location.state）は再読み込みしても履歴に残るので、再読み込み後も同じ扱いになる。
+      // URL を直接開いたときなど、印がない・戻れる履歴がないときは、編集画面を詳細画面に置き換える。
+      if (location.state && location.state.fromDetail && window.history.state && window.history.state.idx > 0) {
+        navigate(-1)
+      } else {
+        navigate(`/record/${record.id}`, { replace: true })
+      }
     } catch (error) {
       console.error('記録の更新に失敗しました', error)
       setSaveError(error.userMessage || '保存できませんでした。もう一度お試しください。')

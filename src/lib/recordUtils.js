@@ -41,6 +41,12 @@ export function groupByYear(records) {
     .map((year) => ({ year, records: map[year] }))
 }
 
+// 記録の一覧（新しい順）から、写真がある最新の記録の1枚目を返す。1枚もなければ null
+export function getRepresentativePhoto(list) {
+  const withPhoto = list.find((r) => r.photos.length > 0)
+  return withPhoto ? withPhoto.photos[0] : null
+}
+
 // 検索条件で絞り込む。条件が空なら、その条件は無視します。
 //   keyword      : 場所名に含まれる文字
 //   prefectureId : '' or 番号

@@ -121,8 +121,9 @@ export default function NewRecordPage() {
 
         <div className="form__submit">
           <button type="submit" className="btn-primary" disabled={!canSave}>
-            記録する
+            {saving ? '保存中…' : '記録する'}
           </button>
+          {saving && photos.length > 0 && <p className="field__hint" role="status">写真を保存しています</p>}
           {!canSave && !saving && <p className="field__hint">場所名と都道府県を入力すると保存できます。</p>}
           {saveError && <p className="field__hint" role="alert">{saveError}</p>}
         </div>

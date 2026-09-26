@@ -7,13 +7,14 @@ import JapanMap from '../components/JapanMap'
 import PrefecturePopup from '../components/PrefecturePopup'
 import SelectedPrefectureLabel from '../components/SelectedPrefectureLabel'
 import { PREFECTURES } from '../data/prefectures'
+import { LoadError } from '../components/RecordsGate'
 import { useRecords } from '../lib/RecordsContext'
 import { getVisitedIds } from '../lib/recordUtils'
 
 const TOTAL = PREFECTURES.length // 47
 
 export default function HomePage() {
-  const { records, loading } = useRecords()
+  const { records, loading, error } = useRecords()
   const [selectedId, setSelectedId] = useState(null) // 地図で選んだ県（ポップアップを閉じても残す）
   const [popupId, setPopupId] = useState(null) // ポップアップで開いている県
   const [previewId, setPreviewId] = useState(null) // いま指・マウスが触れている県（触れていなければ null）
@@ -51,7 +52,7 @@ export default function HomePage() {
 
       <section className="home-status">
         <p className="home-status__count">
-          <span className="home-status__num">{loading ? '–' : visitedIds.length}</span>
+          <span className="home-status__num">{loading || error ? '–' : visitedIds.length}</span>
           <span className="home-status__sep"> / {TOTAL}</span>
           <span className="home-status__unit">都道府県</span>
         </p>
@@ -60,6 +61,8 @@ export default function HomePage() {
           <span className="legend__chip" />未訪問
         </p>
       </section>
+
+      {error && <LoadError tight />}
 
       <Link to="/prefectures" className="row-link">
         <span>都道府県一覧から探す</span>

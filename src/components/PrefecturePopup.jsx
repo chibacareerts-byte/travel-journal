@@ -15,10 +15,12 @@ import { formatDate, getPrefectureSummary } from '../lib/recordUtils'
 const CLOSE_MS = 200 // 閉じるアニメーションの長さ（CSS と合わせる）
 
 export default function PrefecturePopup({ prefectureId, onClose }) {
-  const { records } = useRecords()
+  const { records, loading, error } = useRecords()
   const pref = getPrefecture(prefectureId)
   const { count, representative } = getPrefectureSummary(records, prefectureId)
-  const visited = count > 0
+  // 読み込み中・失敗中は、「まだ記録はありません」とは言わない
+  const pending = loading || error
+  const visited = !pending && count > 0
 
   const [closing, setClosing] = useState(false)
   const closeBtn = useRef(null)
@@ -75,7 +77,13 @@ export default function PrefecturePopup({ prefectureId, onClose }) {
           <p className="pop__en">{PREFECTURE_EN[pref.id]}</p>
           <h2 className="pop__name">{pref.name}</h2>
           <p className={visited ? 'pop__status' : 'pop__status pop__status--none'}>
-            {visited ? `${count} ${count === 1 ? 'PLACE' : 'PLACES'} VISITED` : 'まだ記録はありません'}
+            {visited
+              ? `${count} ${count === 1 ? 'PLACE' : 'PLACES'} VISITED`
+              : loading
+                ? '読み込み中…'
+                : error
+                  ? '記録を読み込めませんでした'
+                  : 'まだ記録はありません'}
           </p>
         </header>
 
@@ -85,7 +93,7 @@ export default function PrefecturePopup({ prefectureId, onClose }) {
           </div>
         </div>
 
-        {!visited && (
+        {!pending && !visited && (
           <footer className="pop__foot">
             {/* 選んでいた県を、新規記録画面の「都道府県」欄に最初から入れて開く */}
             <Link to={`/new?prefecture=${pref.id}`} className="pop__cta" data-keep>

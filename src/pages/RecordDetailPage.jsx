@@ -4,13 +4,15 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import Photo from '../components/Photo'
 import TagList from '../components/TagList'
 import Lightbox from '../components/Lightbox'
+import BackBar from '../components/BackBar'
+import RecordsGate from '../components/RecordsGate'
 import { getPrefecture } from '../data/prefectures'
 import { useRecords } from '../lib/RecordsContext'
 import { formatDate } from '../lib/recordUtils'
 
 export default function RecordDetailPage() {
   const { id } = useParams()
-  const { records, loading, removeRecord } = useRecords()
+  const { records, removeRecord } = useRecords()
   const navigate = useNavigate()
   const [viewerIndex, setViewerIndex] = useState(null) // null = 拡大していない
 
@@ -74,7 +76,10 @@ export default function RecordDetailPage() {
   if (!record) {
     return (
       <div className="page">
-        <p className="empty">{loading ? '' : '記録が見つかりません。'}</p>
+        <BackBar fallback="/records" />
+        <RecordsGate>
+          <p className="empty">記録が見つかりません。</p>
+        </RecordsGate>
       </div>
     )
   }
@@ -151,7 +156,7 @@ export default function RecordDetailPage() {
       )}
 
       <div className="detail__actions">
-        <Link to={`/record/${record.id}/edit`} className="btn-line detail__edit">
+        <Link to={`/record/${record.id}/edit`} state={{ fromDetail: true }} className="btn-line detail__edit">
           編集
         </Link>
         <button type="button" className="btn-line detail__remove" onClick={() => setConfirming(true)}>

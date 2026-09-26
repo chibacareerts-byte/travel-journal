@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import RecordEntry from '../components/RecordEntry'
 import TagDropdown from '../components/TagDropdown'
+import RecordsGate from '../components/RecordsGate'
 import { REGIONS, PREFECTURES } from '../data/prefectures'
 import { useRecords } from '../lib/RecordsContext'
 import { filterRecords } from '../lib/recordUtils'
@@ -84,24 +85,27 @@ export default function SearchPage() {
       </div>
 
       <section className="results">
-        <div className="results__head">
-          <p className="results__count">{results.length}件</p>
-          {isFiltering && (
-            <button type="button" className="text-btn" onClick={() => setFilters(EMPTY)}>
-              条件をクリア
-            </button>
-          )}
-        </div>
-
-        {results.length === 0 ? (
-          <p className="empty">条件に合う記録はありません。</p>
-        ) : (
-          <div className="entry-grid">
-            {results.map((r) => (
-              <RecordEntry key={r.id} record={r} compact />
-            ))}
+        {/* 読み込み中・失敗中は「0件」を出さず、状態だけを静かに伝える */}
+        <RecordsGate>
+          <div className="results__head">
+            <p className="results__count">{results.length}件</p>
+            {isFiltering && (
+              <button type="button" className="text-btn" onClick={() => setFilters(EMPTY)}>
+                条件をクリア
+              </button>
+            )}
           </div>
-        )}
+
+          {results.length === 0 ? (
+            <p className="empty">{records.length === 0 ? 'まだ記録がありません。' : '条件に合う記録はありません。'}</p>
+          ) : (
+            <div className="entry-grid">
+              {results.map((r) => (
+                <RecordEntry key={r.id} record={r} compact />
+              ))}
+            </div>
+          )}
+        </RecordsGate>
       </section>
     </div>
   )
