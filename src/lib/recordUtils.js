@@ -47,6 +47,45 @@ export function getRepresentativePhoto(list) {
   return withPhoto ? withPhoto.photos[0] : null
 }
 
+// 月の英字名（年別ページの月見出し用）。MONTH_EN[0] が 1月
+export const MONTH_EN = [
+  'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+  'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
+]
+
+// '2025-11-03' → '11月3日'（年を省いた表示。日付の文字列を分解するだけなので、タイムゾーンの影響を受けない）
+export function formatMonthDay(iso) {
+  const [, m, d] = iso.split('-').map(Number)
+  return `${m}月${d}日`
+}
+
+// 1年ぶんの記録を、月ごとにまとめる → [{ month: 1, records: [...] }, ...]
+//   月は 1月 → 12月 の順。記録がない月は含めない。
+//   月の中は、訪問日の古い順。同じ日の記録は、id の小さい順（登録した順）にして、順序が毎回同じになるようにする
+export function groupByMonth(records) {
+  const sorted = [...records].sort(
+    (a, b) => a.visitedOn.localeCompare(b.visitedOn) || Number(a.id) - Number(b.id) || 0,
+  )
+  const map = {}
+  sorted.forEach((r) => {
+    const m = Number(r.visitedOn.slice(5, 7))
+    if (!map[m]) map[m] = []
+    map[m].push(r)
+  })
+  return Object.keys(map)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((month) => ({ month, records: map[month] }))
+}
+
+// 1年ぶんの記録の要約：記録数と、訪れた都道府県の数
+export function getYearSummary(records) {
+  return {
+    count: records.length,
+    prefectureCount: new Set(records.map((r) => r.prefectureId)).size,
+  }
+}
+
 // 検索条件で絞り込む。条件が空なら、その条件は無視します。
 //   keyword      : 場所名に含まれる文字
 //   prefectureId : '' or 番号

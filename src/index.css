@@ -991,6 +991,56 @@ img {
   gap: 40px;
 }
 
+/* 年別詳細（YearPage）：年ヘッダーと月ごとのまとまり */
+.year-head {
+  padding-bottom: 28px;
+}
+/* 年別一覧の年号と同じ書体・色・左の位置。390px以下でも4桁が収まるよう、画面幅に応じて縮む */
+.year-head__num {
+  margin-left: -4px;
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-weight: 300;
+  font-size: clamp(72px, 24vw, 96px);
+  line-height: 1;
+  letter-spacing: 0.01em;
+  font-variant-numeric: lining-nums;
+  color: var(--indigo);
+}
+.year-head__sum {
+  margin-top: 12px;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--indigo);
+}
+.month + .month {
+  margin-top: 48px;
+}
+.month__title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 var(--gutter) 18px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--indigo-sub);
+  font-weight: 400;
+}
+.month__num {
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  font-variant-numeric: lining-nums;
+  color: var(--indigo-sub);
+}
+.month__name {
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  color: var(--indigo);
+}
+/* 写真がない記録（年別詳細のみ）：写真の枠なし、文字だけ */
+.entry--text .entry__caption {
+  padding: 4px var(--gutter);
+}
+
 /* ---------- 11. 拡大表示 ---------- */
 .lightbox {
   position: fixed;
