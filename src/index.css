@@ -1226,3 +1226,17 @@ img {
     transition: none !important;
   }
 }
+
+/* ---------- 13. ログイン画面 ---------- */
+.login {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  padding: 18vh 0 40px;
+}
+.login__head {
+  padding: 0 var(--gutter) 32px;
+}
+.login__error {
+  color: var(--indigo);
+}

@@ -4,6 +4,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { fetchRecords, fetchTags, createRecord, createTag } from './recordsApi'
 import { sortNewestFirst } from './recordUtils'
+import { DEFAULT_TAGS } from '../data/tags'
 
 const RecordsContext = createContext(null)
 
@@ -13,11 +14,17 @@ export function RecordsProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([fetchRecords(), fetchTags()]).then(([r, t]) => {
-      setRecords(sortNewestFirst(r))
-      setTags(t)
-      setLoading(false)
-    })
+    Promise.all([fetchRecords(), fetchTags()])
+      .then(([r, t]) => {
+        setRecords(sortNewestFirst(r))
+        setTags(t)
+      })
+      .catch((error) => {
+        // 取得に失敗しても、読み込み中のまま止まらないようにする（記録は空のまま表示する）
+        console.error('記録の取得に失敗しました', error)
+        setTags(DEFAULT_TAGS)
+      })
+      .finally(() => setLoading(false))
   }, [])
 
   async function addRecord(input) {

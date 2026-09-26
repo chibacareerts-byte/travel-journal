@@ -30,6 +30,7 @@ export default function NewRecordPage() {
   const [memo, setMemo] = useState('')
   const [tags, setTags] = useState([])
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   // 同じ画面のまま URL が変わったとき（例：ポップアップ経由で開いたあと、下の「＋」を押して /new に戻した）は、
   // 都道府県を URL に合わせ直す。/new なら未選択に戻る
@@ -44,6 +45,7 @@ export default function NewRecordPage() {
     const added = files.map((file, i) => ({
       id: `new-${Date.now()}-${i}`,
       src: URL.createObjectURL(file), // 画面に表示するための一時的なURL
+      file, // 保存するときに Storage へ送る、選んだ元の画像
     }))
     setPhotos((prev) => [...prev, ...added])
     e.target.value = '' // 同じ写真をもう一度選べるように
@@ -57,15 +59,23 @@ export default function NewRecordPage() {
     e.preventDefault()
     if (!canSave) return
     setSaving(true)
-    const created = await addRecord({
-      placeName: placeName.trim(),
-      prefectureId: Number(prefectureId),
-      visitedOn,
-      photos,
-      memo: memo.trim(),
-      tags,
-    })
-    navigate(`/record/${created.id}`, { replace: true })
+    setSaveError('')
+    try {
+      const created = await addRecord({
+        placeName: placeName.trim(),
+        prefectureId: Number(prefectureId),
+        visitedOn,
+        photos,
+        memo: memo.trim(),
+        tags,
+      })
+      navigate(`/record/${created.id}`, { replace: true })
+    } catch (error) {
+      console.error('記録の保存に失敗しました', error)
+      // 写真の保存で失敗したときは、何が起きたか（成功・失敗・取り消し）が分かるメッセージを出す
+      setSaveError(error.userMessage || '保存できませんでした。もう一度お試しください。')
+      setSaving(false) // 保存中のままにならないよう、ボタンを押せる状態に戻す
+    }
   }
 
   return (
@@ -172,6 +182,7 @@ export default function NewRecordPage() {
             記録する
           </button>
           {!canSave && !saving && <p className="field__hint">場所名と都道府県を入力すると保存できます。</p>}
+          {saveError && <p className="field__hint" role="alert">{saveError}</p>}
         </div>
       </form>
     </div>
