@@ -1242,12 +1242,19 @@ img {
 }
 
 /* ---------- 14. 記録の削除 ---------- */
-.detail__delete {
+/* 詳細画面の一番下：［ 編集 ］［ 削除 ］。赤は使わず、藍色とグレーだけで区別する */
+.detail__actions {
+  display: flex;
+  gap: 12px;
   margin-top: 56px;
   padding: 0 var(--gutter);
-  text-align: center;
 }
-.detail__delete .text-btn {
+.detail__actions .btn-line {
+  flex: 1;
+  padding: 0;
+}
+.detail__remove {
+  border-color: rgba(51, 65, 85, 0.35);
   color: var(--text-soft);
 }
 /* 確認ポップアップ。強い色や影は使わない */
@@ -1309,4 +1316,38 @@ img {
 .confirm__delete:disabled {
   background: var(--line);
   border-color: var(--line);
+}
+
+/* ---------- 15. 写真の編集（並べ替え・削除） ---------- */
+.photo-picker__select {
+  padding: 0;
+  overflow: hidden;
+  background: var(--line);
+}
+/* 選んでいる写真は、藍色の枠で分かるようにする */
+.photo-picker__select.is-selected {
+  outline: 2px solid var(--indigo);
+  outline-offset: -2px;
+}
+.photo-picker__select.is-selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--white);
+  pointer-events: none;
+}
+.photo-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.photo-actions .btn-line {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 6px;
+  font-size: 13px;
+}
+.photo-actions__remove {
+  border-color: rgba(51, 65, 85, 0.35);
+  color: var(--text-soft);
 }

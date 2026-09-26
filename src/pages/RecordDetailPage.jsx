@@ -150,9 +150,12 @@ export default function RecordDetailPage() {
         </section>
       )}
 
-      <div className="detail__delete">
-        <button type="button" className="text-btn" onClick={() => setConfirming(true)}>
-          この記録を削除
+      <div className="detail__actions">
+        <Link to={`/record/${record.id}/edit`} className="btn-line detail__edit">
+          編集
+        </Link>
+        <button type="button" className="btn-line detail__remove" onClick={() => setConfirming(true)}>
+          削除
         </button>
       </div>
 

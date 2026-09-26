@@ -25,6 +25,7 @@ function toPhoto(item, recordId, index, urlMap) {
   if (!item || typeof item !== 'object' || !item.path) return null
   return {
     id: item.id || `${recordId}-p${index + 1}`,
+    path: item.path, // Storage 上の場所。編集画面で、どの写真かを特定するために持つ
     src: urlMap[item.path] || null,
     tone: item.tone ?? 5,
   }
@@ -242,6 +243,201 @@ export async function createRecord(input) {
         ? '保存は取り消しました。'
         : `保存を取り消そうとしましたが、${problems.join('と')}を削除できませんでした。Supabase の管理画面で確認してください。`
     throw saveError(`${reason}${outcome}`, cause)
+  }
+}
+
+// 記録の編集。
+//   input: { placeName, prefectureId, visitedOn, memo, tags, photos? }
+//   photos を渡さなければ、写真には一切触れない（文字情報の5列だけ更新する）。
+//   photos を渡すと、写真の追加・削除・並べ替えも行う。渡し方：
+//     [{ kind: 'existing', id, path } | { kind: 'new', file }, ...]  ← 保存後の並び順のまま
+//   先頭の写真が代表写真：DB でも、photos[0].path と cover_photo が必ず同じになる（0枚なら cover_photo は null）。
+//
+// 写真を変えるときの順序（既存の写真を、DB より先に消さない）：
+//   1. 新しい写真をすべて縮小（失敗しても、まだ何も変えていない）
+//   2. 新しい写真を Storage にアップロード
+//   3. records を1回の UPDATE で更新（文字情報 ＋ photos ＋ cover_photo）
+//   4. UPDATE が成功したあとで、外された古い写真を Storage から削除
+// 失敗したとき：
+//   2 または 3 で失敗 → 今回アップロードした新しい写真だけを削除する（既存の写真は絶対に消さない）
+//   3 が通信エラーのとき → 行を取得し直して、今回の変更が DB に入っているかを確かめてから判断する
+//   4 で失敗 → 記録の更新は成功として扱い、残った写真の path を控えて返す
+// 戻り値：{ fields, photos, failedPaths }（photos は写真を変えたときだけ。src は新しい写真のぶんだけ入る）
+export async function updateRecord(id, input) {
+  const prefecture = PREFECTURES.find((p) => p.id === Number(input.prefectureId))
+  if (!prefecture) throw saveError('都道府県が正しくありません。')
+  const numericId = Number(id)
+  const textColumns = {
+    place_name: input.placeName,
+    prefecture: prefecture.name,
+    visited_date: input.visitedOn,
+    memo: input.memo,
+    tags: input.tags,
+  }
+  const toFields = (row) => ({
+    placeName: row.place_name,
+    prefectureId: prefecture.id,
+    visitedOn: row.visited_date,
+    memo: row.memo || '',
+    tags: toArray(row.tags),
+  })
+
+  // ---- 写真を変えない場合：文字情報の5列だけ ----
+  if (input.photos === undefined) {
+    const { data, error } = await supabase
+      .from('records')
+      .update(textColumns)
+      .eq('id', numericId)
+      .select('id, place_name, prefecture, visited_date, memo, tags')
+    if (error) throw saveError('記録を更新できませんでした。もう一度お試しください。', error)
+    if (!data || data.length === 0) throw saveError('記録を更新できませんでした。記録が見つからないか、更新する権限がありません。')
+    return { fields: toFields(data[0]), failedPaths: [] }
+  }
+
+  // ---- 写真も変える場合 ----
+  const { data: sessionData } = await supabase.auth.getSession()
+  const session = sessionData.session
+  if (!session) throw saveError('ログインしていません。ログインし直してください。')
+  const userId = session.user.id
+  const ownPrefix = `${userId}/`
+
+  const items = input.photos
+  if (items.length > MAX_PHOTOS) throw saveError(`写真は${MAX_PHOTOS}枚までです。`)
+
+  // いまの DB の写真（外された写真を見つけるため、画面ではなく DB を基準にする）
+  const { data: current, error: currentError } = await supabase
+    .from('records')
+    .select('id, photos')
+    .eq('id', numericId)
+    .maybeSingle()
+  if (currentError) throw saveError('記録を確認できませんでした。もう一度お試しください。', currentError)
+  if (!current) throw saveError('この記録が見つかりません。')
+  const currentPaths = toArray(current.photos).map((item) => item && item.path).filter(Boolean)
+
+  // 既存の写真は、DB にある自分の写真だけ受け付ける
+  for (const item of items) {
+    if (item.kind === 'existing' && !currentPaths.includes(item.path)) {
+      throw saveError('写真の情報が古くなっています。編集画面を開き直してください。')
+    }
+  }
+
+  // 1. 新しい写真を縮小（保存前なので、失敗しても取り消すものはない）
+  const newItems = items.filter((item) => item.kind === 'new')
+  const blobs = []
+  for (let i = 0; i < newItems.length; i++) {
+    try {
+      blobs.push(await resizeToJpeg(newItems[i].file))
+    } catch (cause) {
+      console.error(`追加した${i + 1}枚目の写真を変換できませんでした`, cause)
+      throw saveError(`追加した${newItems.length}枚中${i + 1}枚目の写真を変換できませんでした。何も変更していません。`, cause)
+    }
+  }
+
+  // 新しい写真だけを取り消すための関数。既存の写真は、ここでは絶対に消さない
+  const attemptedPaths = []
+  async function rollbackNewPhotos() {
+    if (attemptedPaths.length === 0) return []
+    const { error } = await supabase.storage.from(BUCKET).remove(attemptedPaths)
+    if (error) {
+      console.error('取り消し失敗：今回アップロードした写真を削除できませんでした', attemptedPaths, error)
+      return ['今回追加した写真']
+    }
+    return []
+  }
+  const failWith = async (reason, cause, problems = []) => {
+    const outcome =
+      problems.length === 0
+        ? '変更は取り消しました。'
+        : `変更を取り消そうとしましたが、${problems.join('と')}を削除できませんでした。Supabase の管理画面で確認してください。`
+    throw saveError(`${reason}${outcome}`, cause)
+  }
+
+  // 2. 新しい写真をアップロード
+  const finalPhotos = []
+  let newIndex = 0
+  for (const item of items) {
+    if (item.kind === 'existing') {
+      finalPhotos.push({ id: item.id, path: item.path })
+      continue
+    }
+    const photoId = crypto.randomUUID()
+    const path = `${userId}/${numericId}/${photoId}.jpg`
+    attemptedPaths.push(path)
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, blobs[newIndex], { contentType: 'image/jpeg', upsert: false })
+    if (error) {
+      const problems = await rollbackNewPhotos()
+      await failWith(
+        `追加した${newItems.length}枚中${newIndex + 1}枚目の写真をアップロードできませんでした。`,
+        error,
+        problems,
+      )
+    }
+    newIndex += 1
+    finalPhotos.push({ id: photoId, path })
+  }
+  const finalPaths = finalPhotos.map((photo) => photo.path)
+
+  // 3. records を更新（先頭の写真が代表写真。photos[0] と cover_photo を、必ず同じにする）
+  const { data: updated, error: updateError } = await supabase
+    .from('records')
+    .update({ ...textColumns, photos: finalPhotos, cover_photo: finalPaths[0] ?? null })
+    .eq('id', numericId)
+    .select('id, place_name, prefecture, visited_date, memo, tags, photos, cover_photo')
+
+  let row = updated && updated[0]
+  if (updateError) {
+    // 通信エラーでも、サーバー側では成功している場合がある。行を取得し直して、今回の変更が入っているか確かめる
+    console.error('記録の更新で通信エラーが起きました。DB の状態を確かめます', updateError)
+    const { data: check, error: checkError } = await supabase
+      .from('records')
+      .select('id, place_name, prefecture, visited_date, memo, tags, photos, cover_photo')
+      .eq('id', numericId)
+      .maybeSingle()
+    if (checkError || !check) {
+      // 状態を確かめられない。DB が新しい写真を指している可能性があるので、写真は削除せず残す
+      console.error('DB の状態を確かめられませんでした。アップロード済みの写真は削除せず残します', attemptedPaths, checkError)
+      throw saveError(
+        '保存できたかどうかを確認できませんでした。写真は削除せずに残しています。記録を開き直して、内容を確かめてください。',
+        updateError,
+      )
+    }
+    const checkedPaths = toArray(check.photos).map((item) => item && item.path)
+    if (JSON.stringify(checkedPaths) === JSON.stringify(finalPaths)) {
+      row = check // 実際には更新できていた → 成功として扱う
+    } else {
+      const problems = await rollbackNewPhotos()
+      await failWith('記録を更新できませんでした。', updateError, problems)
+    }
+  } else if (!row) {
+    const problems = await rollbackNewPhotos()
+    await failWith('記録を更新できませんでした。記録が見つからないか、更新する権限がありません。', null, problems)
+  }
+
+  // 4. 更新が成功したあとで、外された古い写真を Storage から削除する
+  const removedPaths = currentPaths.filter((path) => !finalPaths.includes(path) && path.startsWith(ownPrefix))
+  let failedPaths = []
+  if (removedPaths.length > 0) {
+    const { data: removed, error: removeError } = await supabase.storage.from(BUCKET).remove(removedPaths)
+    if (removeError) {
+      failedPaths = removedPaths
+    } else {
+      const done = new Set((removed || []).map((item) => item.name))
+      failedPaths = removedPaths.filter((path) => !done.has(path))
+    }
+    if (failedPaths.length > 0) {
+      console.error('記録は更新しましたが、Storage から削除できなかった古い写真があります:', failedPaths)
+    }
+  }
+
+  // 新しく追加した写真の表示用 URL（既存の写真は、画面が持っている URL をそのまま使う）
+  const newPaths = finalPaths.filter((path) => !currentPaths.includes(path))
+  const urlMap = await signPaths(newPaths)
+  return {
+    fields: toFields(row),
+    photos: finalPhotos.map((photo) => ({ ...photo, src: urlMap[photo.path] || null })),
+    failedPaths,
   }
 }
 

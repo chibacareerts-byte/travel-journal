@@ -8,6 +8,7 @@ import PrefectureListPage from './pages/PrefectureListPage'
 import PrefecturePage from './pages/PrefecturePage'
 import RecordsPage from './pages/RecordsPage'
 import RecordDetailPage from './pages/RecordDetailPage'
+import EditRecordPage from './pages/EditRecordPage'
 import NewRecordPage from './pages/NewRecordPage'
 import SearchPage from './pages/SearchPage'
 import YearsPage from './pages/YearsPage'
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/prefecture/:id" element={<PrefecturePage />} />
           <Route path="/records" element={<RecordsPage />} />
           <Route path="/record/:id" element={<RecordDetailPage />} />
+          <Route path="/record/:id/edit" element={<EditRecordPage />} />
           <Route path="/new" element={<NewRecordPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/years" element={<YearsPage />} />

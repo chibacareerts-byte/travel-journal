@@ -1,20 +1,10 @@
 // 4. 新規記録。入力項目は「場所名・都道府県・訪問日・写真・メモ・タグ」だけ。
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import TagPicker from '../components/TagPicker'
-import { REGIONS, PREFECTURES } from '../data/prefectures'
+import RecordFields, { today } from '../components/RecordFields'
 import { useRecords } from '../lib/RecordsContext'
 
 const MAX_PHOTOS = 10
-
-// メモ欄：文字が増えたら、高さを中身に合わせて広げる
-function autoGrow(el) {
-  el.style.height = 'auto'
-  el.style.height = `${el.scrollHeight + (el.offsetHeight - el.clientHeight)}px`
-}
-
-// 今日の日付を 'YYYY-MM-DD'（日本時間などの端末の時刻）で返す
-const today = () => new Date().toLocaleDateString('sv-SE')
 
 export default function NewRecordPage() {
   const navigate = useNavigate()
@@ -39,6 +29,9 @@ export default function NewRecordPage() {
   }, [prefectureParam])
 
   const canSave = placeName.trim() !== '' && prefectureId !== '' && !saving
+
+  // 共通の入力欄（RecordFields）から届いた変更を、それぞれの state に反映する
+  const fieldSetters = { placeName: setPlaceName, prefectureId: setPrefectureId, visitedOn: setVisitedOn, memo: setMemo, tags: setTags }
 
   function handleFiles(e) {
     const files = Array.from(e.target.files).slice(0, MAX_PHOTOS - photos.length)
@@ -86,96 +79,45 @@ export default function NewRecordPage() {
       </header>
 
       <form className="form" onSubmit={handleSubmit}>
-        <div className="field">
-          <label className="field__label" htmlFor="placeName">場所名</label>
-          <input
-            id="placeName"
-            className="input"
-            value={placeName}
-            onChange={(e) => setPlaceName(e.target.value)}
-          />
-        </div>
-
-        <div className="field">
-          <label className="field__label" htmlFor="prefecture">都道府県</label>
-          <select
-            id="prefecture"
-            className="input input--select"
-            value={prefectureId}
-            onChange={(e) => setPrefectureId(e.target.value)}
-          >
-            <option value="">選択してください</option>
-            {REGIONS.map((region) => (
-              <optgroup key={region} label={region}>
-                {PREFECTURES.filter((p) => p.region === region).map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-
-        <div className="field">
-          <label className="field__label" htmlFor="visitedOn">訪問日</label>
-          <input
-            id="visitedOn"
-            type="date"
-            className="input"
-            value={visitedOn}
-            max={today()}
-            onChange={(e) => setVisitedOn(e.target.value)}
-          />
-        </div>
-
-        <div className="field">
-          <div className="field__label field__label--row">
-            <span>写真</span>
-            <span className="field__count">{photos.length} / {MAX_PHOTOS}</span>
+        <RecordFields
+          placeName={placeName}
+          prefectureId={prefectureId}
+          visitedOn={visitedOn}
+          memo={memo}
+          tags={tags}
+          onChange={(field, value) => fieldSetters[field](value)}
+        >
+          <div className="field">
+            <div className="field__label field__label--row">
+              <span>写真</span>
+              <span className="field__count">{photos.length} / {MAX_PHOTOS}</span>
+            </div>
+            <div className="photo-picker">
+              {photos.map((p, i) => (
+                <div key={p.id} className="photo-picker__item">
+                  <img src={p.src} alt="" />
+                  {i === 0 && <span className="photo-picker__cover">表紙</span>}
+                  <button
+                    type="button"
+                    className="photo-picker__remove"
+                    onClick={() => removePhoto(p.id)}
+                    aria-label="この写真を外す"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {photos.length < MAX_PHOTOS && (
+                <label className="photo-picker__add">
+                  <input type="file" accept="image/*" multiple onChange={handleFiles} />
+                  <span className="photo-picker__plus">＋</span>
+                  <span>写真を選ぶ</span>
+                </label>
+              )}
+            </div>
+            <p className="field__hint">1枚目が記録の表紙になります。</p>
           </div>
-          <div className="photo-picker">
-            {photos.map((p, i) => (
-              <div key={p.id} className="photo-picker__item">
-                <img src={p.src} alt="" />
-                {i === 0 && <span className="photo-picker__cover">表紙</span>}
-                <button
-                  type="button"
-                  className="photo-picker__remove"
-                  onClick={() => removePhoto(p.id)}
-                  aria-label="この写真を外す"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            {photos.length < MAX_PHOTOS && (
-              <label className="photo-picker__add">
-                <input type="file" accept="image/*" multiple onChange={handleFiles} />
-                <span className="photo-picker__plus">＋</span>
-                <span>写真を選ぶ</span>
-              </label>
-            )}
-          </div>
-          <p className="field__hint">1枚目が記録の表紙になります。</p>
-        </div>
-
-        <div className="field">
-          <label className="field__label" htmlFor="memo">メモ</label>
-          <textarea
-            id="memo"
-            className="input input--area"
-            rows={1}
-            value={memo}
-            onChange={(e) => {
-              setMemo(e.target.value)
-              autoGrow(e.target)
-            }}
-          />
-        </div>
-
-        <div className="field">
-          <span className="field__label">タグ</span>
-          <TagPicker selected={tags} onChange={setTags} allowAdd />
-        </div>
+        </RecordFields>
 
         <div className="form__submit">
           <button type="submit" className="btn-primary" disabled={!canSave}>
