@@ -2,7 +2,7 @@
 // 画面側では  const { records, tags, addRecord, addTag } = useRecords()  と書くだけで使えます。
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { fetchRecords, fetchTags, createRecord, createTag } from './recordsApi'
+import { fetchRecords, fetchTags, createRecord, createTag, deleteRecord } from './recordsApi'
 import { sortNewestFirst } from './recordUtils'
 import { DEFAULT_TAGS } from '../data/tags'
 
@@ -33,6 +33,15 @@ export function RecordsProvider({ children }) {
     return created
   }
 
+  // Supabase 側の削除が終わってから、画面の記録一覧（state）から外す。
+  // HOME・記録一覧・検索・都道府県ページ・年別は、すべてこの state から作っているので、すぐに反映される。
+  // 戻り値：{ failedPaths } … Storage から消せなかった写真の path
+  async function removeRecord(id) {
+    const result = await deleteRecord(id)
+    setRecords((prev) => prev.filter((r) => r.id !== String(id)))
+    return result
+  }
+
   async function addTag(name) {
     const clean = name.trim()
     if (!clean || tags.includes(clean)) return clean
@@ -41,7 +50,7 @@ export function RecordsProvider({ children }) {
     return clean
   }
 
-  const value = { records, tags, loading, addRecord, addTag }
+  const value = { records, tags, loading, addRecord, addTag, removeRecord }
   return <RecordsContext.Provider value={value}>{children}</RecordsContext.Provider>
 }
 

@@ -1240,3 +1240,73 @@ img {
 .login__error {
   color: var(--indigo);
 }
+
+/* ---------- 14. 記録の削除 ---------- */
+.detail__delete {
+  margin-top: 56px;
+  padding: 0 var(--gutter);
+  text-align: center;
+}
+.detail__delete .text-btn {
+  color: var(--text-soft);
+}
+/* 確認ポップアップ。強い色や影は使わない */
+.confirm {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--gutter);
+}
+.confirm__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(244, 246, 248, 0.92);
+}
+.confirm__panel {
+  position: relative;
+  width: min(100%, 360px);
+  padding: 28px 24px 24px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+.confirm__title {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  letter-spacing: 0.06em;
+  color: var(--indigo);
+}
+.confirm__text {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.8;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+.confirm__error {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--indigo);
+}
+.confirm__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+}
+.confirm__actions .btn-line {
+  flex: 1;
+  padding: 0 12px;
+}
+/* 「削除する」は、色ではなく塗りで静かに区別する */
+.confirm__delete {
+  background: var(--indigo);
+  color: var(--white);
+}
+.confirm__delete:disabled {
+  background: var(--line);
+  border-color: var(--line);
+}

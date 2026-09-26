@@ -245,6 +245,59 @@ export async function createRecord(input) {
   }
 }
 
+// 記録の削除。順序：
+//   1. 対象の行を取得して、写真の path を控える
+//   2. records の行を削除する（失敗したら、ここで止める。Storage には触れない）
+//   3. Storage の写真を削除する（失敗しても、記録の削除は成功として扱う）
+// 戻り値：{ failedPaths } … Storage から消せなかった写真の path（すべて消せたら空の配列）
+// RLS と Storage のポリシーにより、自分の記録・自分のフォルダの写真にしか触れません。
+export async function deleteRecord(id) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const session = sessionData.session
+  if (!session) throw saveError('ログインしていません。ログインし直してください。')
+  const numericId = Number(id)
+
+  // 1. 対象の行と、写真の path
+  const { data: row, error: selectError } = await supabase
+    .from('records')
+    .select('id, photos, cover_photo')
+    .eq('id', numericId)
+    .maybeSingle()
+  if (selectError) throw saveError('記録を確認できませんでした。もう一度お試しください。', selectError)
+  if (!row) throw saveError('この記録が見つかりません。すでに削除されている可能性があります。')
+
+  // 念のため、自分のフォルダ（<user_id>/…）の写真だけを対象にする
+  const ownPrefix = `${session.user.id}/`
+  const allPaths = [...new Set([...pathsOf([row]), row.cover_photo].filter(Boolean))]
+  const paths = allPaths.filter((path) => path.startsWith(ownPrefix))
+  if (paths.length !== allPaths.length) {
+    console.warn('自分のフォルダ以外の path は、削除の対象から外しました', allPaths.filter((path) => !paths.includes(path)))
+  }
+
+  // 2. records の行を削除（RLS で 0 件になってもエラーにならないので、消えた行数も確かめる）
+  const { data: deleted, error: deleteError } = await supabase
+    .from('records')
+    .delete()
+    .eq('id', numericId)
+    .select('id')
+  if (deleteError) throw saveError('記録を削除できませんでした。もう一度お試しください。', deleteError)
+  if (!deleted || deleted.length === 0) throw saveError('記録を削除できませんでした。もう一度お試しください。')
+
+  // 3. 写真を削除。失敗しても記録は消えているので、成功として扱い、残った path を控えて返す
+  if (paths.length === 0) return { failedPaths: [] }
+  const { data: removed, error: removeError } = await supabase.storage.from(BUCKET).remove(paths)
+  if (removeError) {
+    console.error('記録は削除しましたが、Storage の写真を削除できませんでした。残っている写真:', paths, removeError)
+    return { failedPaths: paths }
+  }
+  const removedPaths = new Set((removed || []).map((item) => item.name))
+  const failedPaths = paths.filter((path) => !removedPaths.has(path))
+  if (failedPaths.length > 0) {
+    console.error('記録は削除しましたが、Storage の一部の写真が残っています:', failedPaths)
+  }
+  return { failedPaths }
+}
+
 // タグは、記録に付けて保存した時点で records.tags に残ります（専用の保存先は今はありません）
 export async function createTag(name) {
   return name
