@@ -85,12 +85,18 @@ export default function RecordDetailPage() {
   }
 
   const pref = getPrefecture(record.prefectureId)
-  const photos = record.photos.length > 0 ? record.photos : [{ id: 'none', src: null, tone: 5 }]
+  // 写真が0枚の記録は、ヒーロー・ギャラリー・拡大表示を出さず、戻るバーと場所名から始める。
+  // （写真のデータはあるが src が取れないときは、0枚ではないので、これまでどおり Photo を通る）
+  const hasPhotos = record.photos.length > 0
+  const photos = hasPhotos ? record.photos : []
   const gallery = photos.slice(1)
 
   return (
-    <article className="detail">
+    <article className={hasPhotos ? 'detail' : 'detail detail--plain'}>
+      {!hasPhotos && <BackBar fallback="/records" />}
+
       {/* 1枚目の写真：タップで拡大 */}
+      {hasPhotos && (
       <div className="detail__hero">
         <button type="button" className="detail__hero-btn" onClick={() => setViewerIndex(0)} aria-label="写真を拡大">
           <Photo photo={photos[0]} ratio="4 / 5" className="detail__hero-photo" />
@@ -101,6 +107,7 @@ export default function RecordDetailPage() {
           </svg>
         </button>
       </div>
+      )}
 
       <div className="detail__body">
         <h1 className="detail__title">{record.placeName}</h1>
@@ -199,7 +206,7 @@ export default function RecordDetailPage() {
         </div>
       )}
 
-      {viewerIndex !== null && (
+      {hasPhotos && viewerIndex !== null && (
         <Lightbox
           photos={photos}
           index={viewerIndex}

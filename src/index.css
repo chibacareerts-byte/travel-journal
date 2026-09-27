@@ -1088,6 +1088,19 @@ img {
 .entry--text .entry__caption {
   padding: 4px var(--gutter);
 }
+/* 検索の2列：写真がない記録は、上の細い罫線（--line）だけで、セルの位置を示す（背景面・枠は作らない） */
+.entry--text.entry--compact .entry__caption {
+  padding: 10px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+/* 写真がない記録の詳細：ヒーローの代わりに戻るバーから始まる */
+.detail--plain {
+  padding-top: env(safe-area-inset-top);
+}
+.detail--plain .detail__body {
+  padding-top: 12px;
+}
 
 /* ---------- 11. 拡大表示 ---------- */
 .lightbox {
