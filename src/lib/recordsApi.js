@@ -12,6 +12,7 @@
 //   表示     : 取得時に署名付き URL（有効1時間）を作って photo.src に入れる
 
 import { supabase } from './supabase'
+import { createPerf } from './perf'
 import { PREFECTURES } from '../data/prefectures'
 import { DEFAULT_TAGS } from '../data/tags'
 
@@ -59,6 +60,9 @@ const MAX_PHOTOS = 10
 const MAX_EDGE = 2000 // 長辺の最大px。これより小さい写真は拡大しない
 const JPEG_QUALITY = 0.85
 const SIGNED_URL_SECONDS = 3600
+// 保存の速さの調整（スマートフォン回線・メモリを考えた値）
+const UPLOAD_CONCURRENCY = 3 // 同時に Storage へ送る枚数。10枚でも、同時には最大3枚まで
+const RESIZE_CONCURRENCY = 1 // 同時に縮小する枚数。大きな写真の展開はメモリを使うので、1枚ずつ（前の写真を送っている間に、次を縮小する）
 
 // 保存パスの一覧から、表示用の署名付き URL を「まとめて」作る → { path: url }
 // 作れなかった写真は入れない（呼び出し側で src: null になり、プレースホルダーが出る）
@@ -121,10 +125,93 @@ async function resizeToJpeg(file) {
     ctx.drawImage(bitmap, 0, 0, width, height)
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY))
     if (!blob) throw new Error('画像を変換できませんでした')
+    canvas.width = 0 // 使い終わった描画領域のメモリをすぐ手放す（スマホで何枚も続けて縮小するとき用）
+    canvas.height = 0
     return blob
   } finally {
     bitmap.close()
   }
+}
+
+// 同時に動かす数を max に制限する順番待ちの仕組み（先に頼んだものから順に動く）
+function createLimiter(max) {
+  let active = 0
+  const queue = []
+  function next() {
+    if (active >= max || queue.length === 0) return
+    active += 1
+    const { fn, resolve, reject } = queue.shift()
+    Promise.resolve()
+      .then(fn) // fn が同期的に値を返しても、例外を投げても、順番待ちが止まらないように
+      .then(resolve, reject)
+      .finally(() => {
+        active -= 1
+        next()
+      })
+  }
+  return (fn) =>
+    new Promise((resolve, reject) => {
+      queue.push({ fn, resolve, reject })
+      next()
+    })
+}
+
+// 開発中だけ、コンソールで window.__saveUploadConcurrency = 1 と入れて「1枚ずつ送る」動きと比べられる
+function uploadConcurrency() {
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    const n = Math.floor(Number(window.__saveUploadConcurrency))
+    if (n >= 1) return Math.min(n, MAX_PHOTOS)
+  }
+  return UPLOAD_CONCURRENCY
+}
+
+// 写真を「縮小 → アップロード」する。写真ごとの流れを、最大 UPLOAD_CONCURRENCY 枚ぶん同時に進める：
+//   ・縮小は1枚ずつ（メモリのため）。縮小が終わった写真から順にアップロードを始めるので、前の写真の送信中に次を縮小できる
+//   ・ready … 記録の id が決まる／編集の前提の確認が済む、まで待ってから送る（確認に失敗したら、1枚も送らない）
+//   ・どれか1枚でも失敗したら、新しい写真の処理は始めない。すでに送信中のものは終わるのを待つ
+//   ・attemptedPaths には「送信を始めた写真の path」を入れる（失敗時にまとめて削除するため。送信の完了は待ってから返す）
+// 成功：入力と同じ順番の path の配列。失敗：error.pipeline = { stage: 'convert' | 'ready' | 'upload', index, cause, uploaded } を付けて投げる
+async function convertAndUpload({ files, ready, pathFor, attemptedPaths, perf }) {
+  const total = files.length
+  const paths = new Array(total).fill(null)
+  const limitResize = createLimiter(RESIZE_CONCURRENCY)
+  let next = 0
+  let failure = null
+
+  async function worker() {
+    while (!failure) {
+      const index = next++
+      if (index >= total) return
+      let stage = 'convert'
+      try {
+        const blob = await limitResize(async () => (failure ? null : await perf.time('resize', () => resizeToJpeg(files[index]))))
+        if (failure) return
+        stage = 'ready'
+        const readyValue = await ready
+        if (failure) return
+        stage = 'upload'
+        const path = pathFor(index, readyValue)
+        attemptedPaths.push(path)
+        const { error } = await perf.time('upload', () =>
+          supabase.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: false }),
+        )
+        if (error) throw error
+        paths[index] = path
+      } catch (cause) {
+        if (!failure) failure = { stage, index, cause }
+        return
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(uploadConcurrency(), total) }, worker))
+  if (failure) {
+    failure.uploaded = paths.filter(Boolean).length
+    const error = new Error('写真の処理に失敗しました', { cause: failure.cause })
+    error.pipeline = failure
+    throw error
+  }
+  return paths
 }
 
 // 画面に見せる日本語のメッセージ付きのエラー
@@ -154,13 +241,15 @@ export async function fetchTags() {
 // input: { placeName, prefectureId, visitedOn, photos, memo, tags }
 //   photos: [{ id, src(プレビュー用の blob URL), file(選んだ元の画像) }]
 //
-// 保存の流れ：
-//   1. 写真をすべて縮小（ここで失敗しても、まだ何も保存していない）
+// 保存の流れ（写真なしなら 2 だけ。通信は INSERT の1回だけ）：
+//   1. 写真の縮小を始める（同時に 2 の INSERT も送る。待ち時間が重なる）
 //   2. records に記録を作る（photos は空）→ id が決まる
-//   3. 写真を <user_id>/<record_id>/<UUID>.jpg に1枚ずつアップロード
-//   4. records.photos と cover_photo（1枚目の path）を更新
-//   2〜4 のどこかで失敗したら、アップロード済みの写真と作った記録を削除して、保存前の状態に戻す
+//   3. 写真を <user_id>/<record_id>/<UUID>.jpg にアップロード（最大3枚を同時に。縮小が終わった写真から順に）
+//   4. records.photos と cover_photo（1枚目の path）を更新（同時に、表示用の署名付き URL も作る）
+//   1〜4 のどこかで失敗したら、アップロード済み（送信中だったものも含む）の写真と作った記録を削除して、保存前の状態に戻す
+//   ※ 縮小・アップロードの途中で失敗したときの取り消しは、記録を先に作っている分、これまでより「記録の削除」が1回増える
 export async function createRecord(input) {
+  const perf = createPerf('新規記録')
   const { data: sessionData } = await supabase.auth.getSession()
   const session = sessionData.session
   if (!session) throw saveError('ログインしていません。ログインし直してください。')
@@ -172,75 +261,86 @@ export async function createRecord(input) {
   const files = toArray(input.photos).map((p) => p.file).filter(Boolean)
   if (files.length > MAX_PHOTOS) throw saveError(`写真は${MAX_PHOTOS}枚までです。`)
 
-  // 1. 縮小（保存前なので、失敗しても取り消すものはない）
-  const blobs = []
-  for (let i = 0; i < files.length; i++) {
-    try {
-      blobs.push(await resizeToJpeg(files[i]))
-    } catch (cause) {
-      console.error(`${i + 1}枚目の写真を変換できませんでした`, cause)
-      throw saveError(`${files.length}枚中${i + 1}枚目の写真を変換できませんでした。何も保存していません。`, cause)
-    }
-  }
-
-  // 2. 記録を作る（写真は、このあと更新する）
-  const { data: created, error: insertError } = await supabase
-    .from('records')
-    .insert({
-      user_id: userId,
-      place_name: input.placeName,
-      prefecture: prefecture.name,
-      visited_date: input.visitedOn,
-      memo: input.memo,
-      tags: input.tags,
-      photos: [],
-      cover_photo: null,
-    })
-    .select()
-    .single()
-  if (insertError) throw insertError
-
-  if (blobs.length === 0) return toRecord(created)
-
-  const attemptedPaths = [] // アップロードを始めた写真（失敗時にまとめて削除する）
-  const photos = []
-  try {
-    // 3. アップロード
-    for (let i = 0; i < blobs.length; i++) {
-      const photoId = crypto.randomUUID()
-      const path = `${userId}/${created.id}/${photoId}.jpg`
-      attemptedPaths.push(path)
-      const { error } = await supabase.storage
-        .from(BUCKET)
-        .upload(path, blobs[i], { contentType: 'image/jpeg', upsert: false })
-      if (error) {
-        throw saveError(
-          `${blobs.length}枚中${i + 1}枚目の写真をアップロードできませんでした（${i}枚は成功）。`,
-          error,
-        )
-      }
-      photos.push({ id: photoId, path })
-    }
-
-    // 4. 写真の情報を記録に書き込む（表紙は1枚目。あとから変えられるよう、cover_photo は別の列に持つ）
-    const { data: updated, error: updateError } = await supabase
+  const insertRecord = () =>
+    supabase
       .from('records')
-      .update({ photos, cover_photo: photos[0].path })
-      .eq('id', created.id)
+      .insert({
+        user_id: userId,
+        place_name: input.placeName,
+        prefecture: prefecture.name,
+        visited_date: input.visitedOn,
+        memo: input.memo,
+        tags: input.tags,
+        photos: [],
+        cover_photo: null,
+      })
       .select()
       .single()
+
+  // 写真なし：INSERT の1回だけ（縮小もアップロードもない）
+  if (files.length === 0) {
+    const { data: created, error: insertError } = await perf.time('db', insertRecord)
+    if (insertError) throw insertError
+    perf.end(0)
+    return toRecord(created)
+  }
+
+  // 写真あり：記録の作成（INSERT）を、写真の縮小と同時に始める。id が決まったら、縮小済みの写真から送り始める
+  const inserting = perf.time('db', insertRecord)
+  const ready = Promise.resolve(inserting).then(({ data, error }) => {
+    if (error) throw error
+    return data
+  })
+  ready.catch(() => {}) // だれも待っていない間に失敗しても、未処理のエラーにならないように（あとで下で必ず確認する）
+
+  const photoIds = files.map(() => crypto.randomUUID())
+  const attemptedPaths = [] // アップロードを始めた写真（失敗時にまとめて削除する）
+
+  try {
+    // 3. 縮小 → アップロード
+    const paths = await convertAndUpload({
+      files,
+      ready,
+      attemptedPaths,
+      perf,
+      pathFor: (i, created) => `${userId}/${created.id}/${photoIds[i]}.jpg`,
+    })
+    const photos = paths.map((path, i) => ({ id: photoIds[i], path }))
+
+    // 4. 写真の情報を記録に書き込む（表紙は1枚目。あとから変えられるよう、cover_photo は別の列に持つ）。表示用の URL は同時に作る
+    const created = await ready
+    const [{ data: updated, error: updateError }, urlMap] = await Promise.all([
+      perf.time('db', () =>
+        supabase.from('records').update({ photos, cover_photo: photos[0].path }).eq('id', created.id).select().single(),
+      ),
+      perf.time('sign', () => signPaths(paths)),
+    ])
     if (updateError) throw saveError('写真の情報を記録に書き込めませんでした。', updateError)
 
-    const urlMap = await signPaths(pathsOf([updated]))
+    perf.end(files.length)
     return toRecord(updated, urlMap)
   } catch (cause) {
+    const pipeline = cause && cause.pipeline
+    // 記録を作れなかったとき：写真は1枚も送っていない。取り消すものはないので、そのままエラーにする
+    let insertFailure = null
+    const created = await ready.catch((e) => {
+      insertFailure = e
+      return null
+    })
+    if (insertFailure) {
+      console.error('記録を作れませんでした', insertFailure)
+      throw insertFailure
+    }
+
     // 取り消し：アップロード済みの写真と、作った記録を削除する
     console.error('保存に失敗したため、取り消します', cause)
     const problems = []
-    const { error: removeError } = await supabase.storage.from(BUCKET).remove(attemptedPaths)
-    if (removeError) {
-      console.error('取り消し失敗：Storage の写真を削除できませんでした', attemptedPaths, removeError)
-      problems.push('アップロード済みの写真')
+    if (attemptedPaths.length > 0) {
+      const { error: removeError } = await supabase.storage.from(BUCKET).remove(attemptedPaths)
+      if (removeError) {
+        console.error('取り消し失敗：Storage の写真を削除できませんでした', attemptedPaths, removeError)
+        problems.push('アップロード済みの写真')
+      }
     }
     const { error: deleteError } = await supabase.from('records').delete().eq('id', created.id)
     if (deleteError) {
@@ -248,7 +348,14 @@ export async function createRecord(input) {
       problems.push('作成した記録')
     }
 
-    const reason = cause && cause.userMessage ? cause.userMessage : '写真の保存中にエラーが起きました。'
+    let reason = '写真の保存中にエラーが起きました。'
+    if (pipeline && pipeline.stage === 'convert') {
+      reason = `${files.length}枚中${pipeline.index + 1}枚目の写真を変換できませんでした。`
+    } else if (pipeline && pipeline.stage === 'upload') {
+      reason = `${files.length}枚中${pipeline.index + 1}枚目の写真をアップロードできませんでした（${pipeline.uploaded}枚は成功）。`
+    } else if (cause && cause.userMessage) {
+      reason = cause.userMessage
+    }
     const outcome =
       problems.length === 0
         ? '保存は取り消しました。'
@@ -306,6 +413,7 @@ export async function updateRecord(id, input) {
   }
 
   // ---- 写真も変える場合 ----
+  const perf = createPerf('編集保存')
   const { data: sessionData } = await supabase.auth.getSession()
   const session = sessionData.session
   if (!session) throw saveError('ログインしていません。ログインし直してください。')
@@ -315,34 +423,24 @@ export async function updateRecord(id, input) {
   const items = input.photos
   if (items.length > MAX_PHOTOS) throw saveError(`写真は${MAX_PHOTOS}枚までです。`)
 
-  // いまの DB の写真（外された写真を見つけるため、画面ではなく DB を基準にする）
-  const { data: current, error: currentError } = await supabase
-    .from('records')
-    .select('id, photos')
-    .eq('id', numericId)
-    .maybeSingle()
-  if (currentError) throw saveError('記録を確認できませんでした。もう一度お試しください。', currentError)
-  if (!current) throw saveError('この記録が見つかりません。')
-  const currentPaths = toArray(current.photos).map((item) => item && item.path).filter(Boolean)
-
-  // 既存の写真は、DB にある自分の写真だけ受け付ける
-  for (const item of items) {
-    if (item.kind === 'existing' && !currentPaths.includes(item.path)) {
-      throw saveError('写真の情報が古くなっています。編集画面を開き直してください。')
+  // いまの DB の写真（外された写真を見つけるため、画面ではなく DB を基準にする）。
+  // この確認は、写真の縮小と同時に進める（新しい写真は、確認が済んでから送る。確認に失敗したら、1枚も送らない）
+  const checking = perf.time('db', () =>
+    supabase.from('records').select('id, photos').eq('id', numericId).maybeSingle(),
+  )
+  const ready = Promise.resolve(checking).then(({ data: current, error: currentError }) => {
+    if (currentError) throw saveError('記録を確認できませんでした。もう一度お試しください。', currentError)
+    if (!current) throw saveError('この記録が見つかりません。')
+    const paths = toArray(current.photos).map((item) => item && item.path).filter(Boolean)
+    // 既存の写真は、DB にある自分の写真だけ受け付ける
+    for (const item of items) {
+      if (item.kind === 'existing' && !paths.includes(item.path)) {
+        throw saveError('写真の情報が古くなっています。編集画面を開き直してください。')
+      }
     }
-  }
-
-  // 1. 新しい写真を縮小（保存前なので、失敗しても取り消すものはない）
-  const newItems = items.filter((item) => item.kind === 'new')
-  const blobs = []
-  for (let i = 0; i < newItems.length; i++) {
-    try {
-      blobs.push(await resizeToJpeg(newItems[i].file))
-    } catch (cause) {
-      console.error(`追加した${i + 1}枚目の写真を変換できませんでした`, cause)
-      throw saveError(`追加した${newItems.length}枚中${i + 1}枚目の写真を変換できませんでした。何も変更していません。`, cause)
-    }
-  }
+    return paths
+  })
+  ready.catch(() => {}) // だれも待っていない間に失敗しても、未処理のエラーにならないように（あとで下で必ず確認する）
 
   // 新しい写真だけを取り消すための関数。既存の写真は、ここでは絶対に消さない
   const attemptedPaths = []
@@ -363,7 +461,36 @@ export async function updateRecord(id, input) {
     throw saveError(`${reason}${outcome}`, cause)
   }
 
-  // 2. 新しい写真をアップロード
+  // 1〜2. 新しい写真を「縮小 → アップロード」（最大3枚同時。縮小は1枚ずつ）。失敗したら、今回送った写真だけを取り消す
+  const newItems = items.filter((item) => item.kind === 'new')
+  const newPhotoIds = newItems.map(() => crypto.randomUUID())
+  let currentPaths
+  if (newItems.length === 0) {
+    currentPaths = await ready // 写真の追加がないときは、確認だけ（縮小・アップロードなし）
+  } else {
+    try {
+      await convertAndUpload({
+        files: newItems.map((item) => item.file),
+        ready,
+        attemptedPaths,
+        perf,
+        pathFor: (i) => `${userId}/${numericId}/${newPhotoIds[i]}.jpg`,
+      })
+    } catch (cause) {
+      const pipeline = cause && cause.pipeline
+      if (pipeline && pipeline.stage === 'ready') throw pipeline.cause // 前提の確認に失敗（写真は1枚も送っていない）
+      const problems = await rollbackNewPhotos()
+      if (pipeline && pipeline.stage === 'convert') {
+        await failWith(`追加した${newItems.length}枚中${pipeline.index + 1}枚目の写真を変換できませんでした。`, cause, problems)
+      }
+      if (pipeline && pipeline.stage === 'upload') {
+        await failWith(`追加した${newItems.length}枚中${pipeline.index + 1}枚目の写真をアップロードできませんでした。`, cause, problems)
+      }
+      await failWith('写真の保存中にエラーが起きました。', cause, problems)
+    }
+    currentPaths = await ready
+  }
+
   const finalPhotos = []
   let newIndex = 0
   for (const item of items) {
@@ -371,31 +498,20 @@ export async function updateRecord(id, input) {
       finalPhotos.push({ id: item.id, path: item.path })
       continue
     }
-    const photoId = crypto.randomUUID()
-    const path = `${userId}/${numericId}/${photoId}.jpg`
-    attemptedPaths.push(path)
-    const { error } = await supabase.storage
-      .from(BUCKET)
-      .upload(path, blobs[newIndex], { contentType: 'image/jpeg', upsert: false })
-    if (error) {
-      const problems = await rollbackNewPhotos()
-      await failWith(
-        `追加した${newItems.length}枚中${newIndex + 1}枚目の写真をアップロードできませんでした。`,
-        error,
-        problems,
-      )
-    }
+    const photoId = newPhotoIds[newIndex]
     newIndex += 1
-    finalPhotos.push({ id: photoId, path })
+    finalPhotos.push({ id: photoId, path: `${userId}/${numericId}/${photoId}.jpg` })
   }
   const finalPaths = finalPhotos.map((photo) => photo.path)
 
   // 3. records を更新（先頭の写真が代表写真。photos[0] と cover_photo を、必ず同じにする）
-  const { data: updated, error: updateError } = await supabase
-    .from('records')
-    .update({ ...textColumns, photos: finalPhotos, cover_photo: finalPaths[0] ?? null })
-    .eq('id', numericId)
-    .select('id, place_name, prefecture, visited_date, memo, tags, photos, cover_photo')
+  const { data: updated, error: updateError } = await perf.time('db', () =>
+    supabase
+      .from('records')
+      .update({ ...textColumns, photos: finalPhotos, cover_photo: finalPaths[0] ?? null })
+      .eq('id', numericId)
+      .select('id, place_name, prefecture, visited_date, memo, tags, photos, cover_photo'),
+  )
 
   let row = updated && updated[0]
   if (updateError) {
@@ -426,25 +542,27 @@ export async function updateRecord(id, input) {
     await failWith('記録を更新できませんでした。記録が見つからないか、更新する権限がありません。', null, problems)
   }
 
-  // 4. 更新が成功したあとで、外された古い写真を Storage から削除する
+  // 4. 更新が成功したあとで、外された古い写真を Storage から削除する。
+  //    同時に、新しく追加した写真の表示用 URL（既存の写真は、画面が持っている URL をそのまま使う）を作る
   const removedPaths = currentPaths.filter((path) => !finalPaths.includes(path) && path.startsWith(ownPrefix))
-  let failedPaths = []
-  if (removedPaths.length > 0) {
+  const newPaths = finalPaths.filter((path) => !currentPaths.includes(path))
+  async function removeOldPhotos() {
+    if (removedPaths.length === 0) return []
     const { data: removed, error: removeError } = await supabase.storage.from(BUCKET).remove(removedPaths)
+    let failed
     if (removeError) {
-      failedPaths = removedPaths
+      failed = removedPaths
     } else {
       const done = new Set((removed || []).map((item) => item.name))
-      failedPaths = removedPaths.filter((path) => !done.has(path))
+      failed = removedPaths.filter((path) => !done.has(path))
     }
-    if (failedPaths.length > 0) {
-      console.error('記録は更新しましたが、Storage から削除できなかった古い写真があります:', failedPaths)
+    if (failed.length > 0) {
+      console.error('記録は更新しましたが、Storage から削除できなかった古い写真があります:', failed)
     }
+    return failed
   }
-
-  // 新しく追加した写真の表示用 URL（既存の写真は、画面が持っている URL をそのまま使う）
-  const newPaths = finalPaths.filter((path) => !currentPaths.includes(path))
-  const urlMap = await signPaths(newPaths)
+  const [failedPaths, urlMap] = await Promise.all([removeOldPhotos(), perf.time('sign', () => signPaths(newPaths))])
+  perf.end(newItems.length)
   return {
     fields: toFields(row),
     photos: finalPhotos.map((photo) => ({ ...photo, src: urlMap[photo.path] || null })),
