@@ -1484,3 +1484,296 @@ img {
   border-color: rgba(51, 65, 85, 0.35);
   color: var(--text-soft);
 }
+
+/* ---------- MY BEST（手動ランキング） ---------- */
+/* 記録ページの見出しから MY BEST へ（BottomNav は増やさず、ここに1つだけ導線を置く） */
+.head-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 6px;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--indigo);
+}
+
+.best-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.best-item {
+  display: grid;
+  grid-template-columns: 52px 72px minmax(0, 1fr) 44px;
+  column-gap: 12px;
+  align-items: start;
+  margin: 0 var(--gutter);
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+}
+.best-item:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.best-item--text {
+  grid-template-columns: 52px minmax(0, 1fr) 44px;
+}
+/* 順位の数字：年別ページの年号と同じ書体・色（少し小さめ） */
+.best-item__rank {
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-weight: 300;
+  font-size: 44px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  font-variant-numeric: lining-nums;
+  color: var(--indigo);
+}
+.best-item__thumb {
+  display: block;
+}
+.best-item__body {
+  min-width: 0;
+}
+.best-item__title {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.best-item__meta {
+  margin-top: 2px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--text-soft);
+}
+/* 外す：主張しない灰色の文字（押せる範囲は44px） */
+.best-item__remove {
+  min-height: 44px;
+  margin-top: 2px;
+  padding: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--text-soft);
+}
+.best-item__move {
+  display: flex;
+  flex-direction: column;
+}
+.best-item__move button {
+  width: 44px;
+  height: 44px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--indigo);
+}
+.best-item__move button:disabled,
+.best-item__remove:disabled {
+  color: var(--line);
+  cursor: default;
+}
+.best__empty {
+  padding: 8px var(--gutter) 20px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--text-soft);
+}
+.best__notice {
+  margin: 12px var(--gutter) 0;
+}
+.best__add {
+  padding: 24px var(--gutter) 0;
+}
+
+/* 追加：保存済みの記録の一覧（記録が多くても、この枠の中だけがスクロールする） */
+.best-pick {
+  margin: 20px var(--gutter) 0;
+}
+.best-pick__list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 50dvh;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+.best-pick__row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.best-pick__name {
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.best-pick__meta {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--text-soft);
+}
+.best-pick__row:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.best-pick .best__empty {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* MY BEST：リスト一覧・リストの管理（作成・名前変更・削除） */
+.best-lists {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.best-lists li {
+  margin: 0 var(--gutter);
+  border-top: 1px solid var(--line);
+}
+.best-lists li:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.best-lists__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 84px;
+  padding: 16px 0;
+}
+.best-lists__text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.best-lists__title {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.best-lists__count {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--indigo-sub);
+}
+.best-lists__arrow {
+  flex: none;
+  font-size: 16px;
+  color: var(--indigo);
+}
+.best-form {
+  margin-top: 12px;
+}
+.best-form--create {
+  margin-top: 0;
+}
+.best-form__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.best-manage {
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 0;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--indigo);
+}
+.best-manage--quiet {
+  font-size: 12px;
+  color: var(--text-soft);
+}
+.best__delete {
+  padding: 28px var(--gutter) 0;
+}
+
+/* BEST 5：満員の表示 */
+.best__done {
+  padding: 24px var(--gutter) 0;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--text-soft);
+}
+.best__done span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+/* 編集画面の「MY BEST」欄：タップしやすい選択行（細い罫線で区切るだけ。カード・影は使わない） */
+.best-check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.best-check {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.best-check__box {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--indigo-sub);
+  border-radius: 2px;
+  background: var(--white);
+  font-size: 14px;
+  line-height: 1;
+  color: var(--white);
+}
+.best-check.is-on .best-check__box {
+  background: var(--indigo);
+  border-color: var(--indigo);
+}
+.best-check__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.best-check__count {
+  flex: none;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--indigo-sub);
+}
+.best-check:disabled {
+  cursor: default;
+}
+.best-check:disabled .best-check__box {
+  border-color: var(--line);
+  background: transparent;
+}
+.best-check:disabled .best-check__title,
+.best-check:disabled .best-check__count {
+  color: var(--text-soft);
+}
+.best-form--inline {
+  margin-top: 12px;
+}

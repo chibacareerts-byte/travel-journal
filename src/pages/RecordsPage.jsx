@@ -1,4 +1,5 @@
 // 「記録」タブ：すべての記録を、新しい順に大きな写真で。
+import { Link } from 'react-router-dom'
 import RecordEntry from '../components/RecordEntry'
 import RecordsGate, { EmptyRecords } from '../components/RecordsGate'
 import { useRecords } from '../lib/RecordsContext'
@@ -12,6 +13,9 @@ export default function RecordsPage() {
         <p className="eyebrow">All Records</p>
         <h1 className="page-title">記録</h1>
         <p className="page-sub">{loading || error || records.length === 0 ? '' : `${records.length}件`}</p>
+        <Link to="/best" className="head-link">
+          MY BEST →
+        </Link>
       </header>
 
       <RecordsGate>

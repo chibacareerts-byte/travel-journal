@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import BackBar from '../components/BackBar'
+import BestListsField, { useRecordBest } from '../components/BestListsField'
 import PhotoEditor from '../components/PhotoEditor'
 import RecordFields from '../components/RecordFields'
 import RecordsGate from '../components/RecordsGate'
@@ -46,6 +47,8 @@ function EditForm({ record }) {
   )
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [recordSaved, setRecordSaved] = useState(false) // 記録の保存が済んだあと、MY BESTだけ失敗したとき true（再試行では記録を保存し直さない）
+  const best = useRecordBest(record.id)
 
   const canSave = values.placeName.trim() !== '' && values.prefectureId !== '' && !saving
 
@@ -54,24 +57,48 @@ function EditForm({ record }) {
     if (!canSave) return // 保存中の二重送信もここで止まる
     setSaving(true)
     setSaveError('')
-    // 写真を変えたときだけ、写真も更新する（変えていなければ、写真には一切触れない）
-    const photosChanged =
-      photoItems.some((item) => item.kind === 'new') ||
-      photoItems.length !== record.photos.length ||
-      photoItems.some((item, i) => item.id !== record.photos[i].id)
     try {
-      await updateRecord(record.id, {
-        placeName: values.placeName.trim(),
-        prefectureId: Number(values.prefectureId),
-        visitedOn: values.visitedOn,
-        memo: values.memo.trim(),
-        tags: values.tags,
-        photos: photosChanged
-          ? photoItems.map((item) =>
-              item.kind === 'new' ? { kind: 'new', file: item.file } : { kind: 'existing', id: item.id, path: item.path },
-            )
-          : undefined,
-      })
+      if (!recordSaved) {
+        // 写真を変えたときだけ、写真も更新する（変えていなければ、写真には一切触れない）
+        const photosChanged =
+          photoItems.some((item) => item.kind === 'new') ||
+          photoItems.length !== record.photos.length ||
+          photoItems.some((item, i) => item.id !== record.photos[i].id)
+        await updateRecord(record.id, {
+          placeName: values.placeName.trim(),
+          prefectureId: Number(values.prefectureId),
+          visitedOn: values.visitedOn,
+          memo: values.memo.trim(),
+          tags: values.tags,
+          photos: photosChanged
+            ? photoItems.map((item) =>
+                item.kind === 'new' ? { kind: 'new', file: item.file } : { kind: 'existing', id: item.id, path: item.path },
+              )
+            : undefined,
+        })
+        setRecordSaved(true)
+      }
+    } catch (error) {
+      console.error('記録の更新に失敗しました', error)
+      setSaveError(error.userMessage || '保存できませんでした。もう一度お試しください。')
+      setSaving(false) // 入力内容は残したまま、もう一度保存できる状態に戻す
+      return
+    }
+
+    // MY BEST の更新（記録の保存が成功したあと）。失敗しても、記録は保存済みなので、何が成功し何が失敗したかを伝える
+    try {
+      await best.save()
+    } catch (error) {
+      console.error('MY BESTの更新に失敗しました', error)
+      setSaveError(
+        `記録は保存しました。MY BESTは更新できませんでした（変更は反映されていません）。${error.userMessage || ''}` +
+          '［保存する］を押すと、MY BESTだけをもう一度保存します。',
+      )
+      setSaving(false)
+      return
+    }
+
+    try {
       // 詳細画面の［編集］から来たときは、履歴の1つ前が、その記録の詳細画面。
       // そこへ1つ戻る（replace で詳細を重ねると、「戻る」で同じ詳細がもう一度出てしまう）。
       // ［編集］の印（location.state）は再読み込みしても履歴に残るので、再読み込み後も同じ扱いになる。
@@ -103,6 +130,8 @@ function EditForm({ record }) {
         >
           <PhotoEditor items={photoItems} onChange={setPhotoItems} />
         </RecordFields>
+
+        <BestListsField best={best} />
 
         <div className="form__submit">
           <button type="submit" className="btn-primary" disabled={!canSave}>
