@@ -1,6 +1,6 @@
 // 画面下部に固定されるナビゲーション：地図 / 記録 / ＋ / 検索 / 年別
 
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 
 const stroke = {
   width: 22,
@@ -48,7 +48,7 @@ const icons = {
 }
 
 const items = [
-  { to: '/', label: '地図', icon: 'map', end: true },
+  { to: '/', label: '地図', icon: 'map', end: true, alsoActive: '/prefecture' }, // 都道府県一覧・都道府県ページでも点灯
   { to: '/records', label: '記録', icon: 'records' },
   { to: '/new', label: '新規記録', icon: 'plus', center: true },
   { to: '/search', label: '検索', icon: 'search' },
@@ -56,6 +56,7 @@ const items = [
 ]
 
 export default function BottomNav() {
+  const { pathname } = useLocation()
   return (
     <nav className="bottom-nav" aria-label="メインメニュー">
       {items.map((item) => (
@@ -67,7 +68,7 @@ export default function BottomNav() {
           className={({ isActive }) =>
             'bottom-nav__item' +
             (item.center ? ' bottom-nav__item--center' : '') +
-            (isActive ? ' is-active' : '')
+            (isActive || (item.alsoActive && pathname.startsWith(item.alsoActive)) ? ' is-active' : '')
           }
         >
           <span className="bottom-nav__icon">{icons[item.icon]}</span>

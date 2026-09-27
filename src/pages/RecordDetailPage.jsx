@@ -184,7 +184,7 @@ export default function RecordDetailPage() {
               <>
                 <p className="confirm__title" id="confirm-title">この記録を削除しますか？</p>
                 <p className="confirm__text">写真も削除され、元に戻せません。</p>
-                {deleteError && <p className="confirm__error" role="alert">{deleteError}</p>}
+                {deleteError && <p className="notice" role="alert">{deleteError}</p>}
                 <div className="confirm__actions">
                   <button type="button" className="btn-line" onClick={closeConfirm} disabled={busy} autoFocus>
                     キャンセル

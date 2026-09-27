@@ -60,7 +60,7 @@ export default function LoginPage() {
           <button type="submit" className="btn-primary" disabled={!canSubmit}>
             ログイン
           </button>
-          {error && <p className="field__hint login__error" role="alert">{error}</p>}
+          {error && <p className="notice" role="alert">{error}</p>}
         </div>
       </form>
     </div>

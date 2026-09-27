@@ -15,7 +15,7 @@
   --text: #334155;
   --line: #d8dfe6;
   --white: #ffffff;
-  --text-soft: rgba(51, 65, 85, 0.62);
+  --text-soft: rgba(51, 65, 85, 0.75);
 
   --font-sans: 'Noto Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
   --font-serif: 'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
@@ -119,12 +119,23 @@ img {
   color: var(--indigo);
 }
 .bottom-nav__label {
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   line-height: 1;
 }
 .bottom-nav__icon {
   display: flex;
+}
+
+/* 文字入力・選択の欄にフォーカスがある間は、キーボードと重ならないよう隠す。
+   ファイル選択・日付などキーボードを使わない欄は対象外 */
+.app:has(
+    textarea:focus,
+    select:focus,
+    input:is(:not([type]), [type='text'], [type='search'], [type='email'], [type='password'], [type='url'], [type='tel'], [type='number']):focus
+  )
+  .bottom-nav {
+  display: none;
 }
 
 /* 中央の「＋」 */
@@ -269,6 +280,19 @@ img {
   font-size: 16px;
   line-height: 1;
   color: var(--indigo);
+}
+
+/* ユーザーの対応が必要な失敗（保存・削除・ログイン）の通知。
+   赤は使わず、左の細い藍色の線＋本文色で、通常の補足文（field__hint）と区別する */
+.notice {
+  margin-top: 12px;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--indigo);
+  font-size: 13px;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  text-align: left;
 }
 
 /* 見た目は変えずに、押せる範囲だけを44px程度に広げる */
@@ -690,7 +714,7 @@ img {
 }
 .field__hint {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-soft);
 }
 
@@ -844,6 +868,30 @@ img {
   font-size: 18px;
   color: var(--indigo);
   letter-spacing: 0.06em;
+}
+
+/* 検索：追加の条件（都道府県・期間・タグ）の開閉 */
+.filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--indigo);
+}
+.filter-toggle__chev {
+  transition: transform 0.15s;
+}
+.filter-toggle[aria-expanded='true'] .filter-toggle__chev {
+  transform: rotate(180deg);
+}
+.search-more {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 8px;
 }
 
 /* 検索：タグの複数選択ドロップダウン */
@@ -1318,9 +1366,6 @@ img {
 .login__head {
   padding: 0 var(--gutter) 32px;
 }
-.login__error {
-  color: var(--indigo);
-}
 
 /* ---------- 14. 記録の削除 ---------- */
 /* 詳細画面の一番下：［ 編集 ］［ 削除 ］。赤は使わず、藍色とグレーだけで区別する */
@@ -1373,12 +1418,6 @@ img {
   line-height: 1.8;
   letter-spacing: 0.04em;
   color: var(--text);
-}
-.confirm__error {
-  margin-top: 12px;
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--indigo);
 }
 .confirm__actions {
   display: flex;

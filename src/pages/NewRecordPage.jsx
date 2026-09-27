@@ -125,7 +125,7 @@ export default function NewRecordPage() {
           </button>
           {saving && photos.length > 0 && <p className="field__hint" role="status">写真を保存しています</p>}
           {!canSave && !saving && <p className="field__hint">場所名と都道府県を入力すると保存できます。</p>}
-          {saveError && <p className="field__hint" role="alert">{saveError}</p>}
+          {saveError && <p className="notice" role="alert">{saveError}</p>}
         </div>
       </form>
     </div>

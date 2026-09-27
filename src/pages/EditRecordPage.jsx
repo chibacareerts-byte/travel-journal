@@ -109,7 +109,7 @@ function EditForm({ record }) {
             {saving ? '保存中…' : '保存する'}
           </button>
           {!canSave && !saving && <p className="field__hint">場所名と都道府県を入力すると保存できます。</p>}
-          {saveError && <p className="field__hint" role="alert">{saveError}</p>}
+          {saveError && <p className="notice" role="alert">{saveError}</p>}
         </div>
       </form>
     </div>
