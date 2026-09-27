@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- 地図ピン：藍色（#1E4B7A）の単色。中の丸は抜いて、背景は透明 -->
+  <path fill="#1E4B7A" fill-rule="evenodd" d="M16 29C16 29 6 20.6 6 13a10 10 0 0 1 20 0c0 7.6-10 16-10 16ZM16 9a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/>
+</svg>
