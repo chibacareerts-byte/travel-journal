@@ -1,12 +1,41 @@
 // 記録とタグを、アプリ全体で共有するための入れ物（React Context）です。
 // 画面側では  const { records, tags, addRecord, addTag } = useRecords()  と書くだけで使えます。
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import { fetchRecords, fetchTags, createRecord, createTag, deleteRecord, updateRecord as saveRecordChanges } from './recordsApi'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import {
+  fetchRecords,
+  fetchTags,
+  createRecord,
+  createTag,
+  deleteRecord,
+  refreshPhotoUrls,
+  updateRecord as saveRecordChanges,
+} from './recordsApi'
 import { sortNewestFirst } from './recordUtils'
 import { DEFAULT_TAGS } from '../data/tags'
 
 const RecordsContext = createContext(null)
+
+// 写真の表示用 URL（署名付き・有効1時間）を、期限が切れる前に静かに作り直す設定
+const STALE_MS = 45 * 60 * 1000 // 前回の署名から、これ以上たったら作り直す（有効期限の60分より15分早い）
+const CHECK_EVERY_MS = 60 * 1000 // 確認の間隔（確認だけでは通信しない）
+const FAILED_RETRY_MS = 5 * 60 * 1000 // 前回の試行から、この時間は再試行しない（通信障害時に毎分リクエストしないため）
+
+// records の写真の src だけを、path をキーに新しい URL へ差し替える。
+// 記録本体・photos の長さ・id・path はそのまま。新しい URL が無い path は、いまの src を残す。
+// 何も変わらない記録は、同じオブジェクトのまま返す。
+function applyPhotoUrls(list, urlMap) {
+  return list.map((record) => {
+    let changed = false
+    const photos = record.photos.map((photo) => {
+      const url = urlMap[photo.path]
+      if (!url || url === photo.src) return photo
+      changed = true
+      return { ...photo, src: url }
+    })
+    return changed ? { ...record, photos } : record
+  })
+}
 
 export function RecordsProvider({ children }) {
   const [records, setRecords] = useState([])
@@ -15,9 +44,23 @@ export function RecordsProvider({ children }) {
   // 読み込みに失敗したとき true。「記録が0件」とは別の状態として画面に伝える
   const [error, setError] = useState(false)
 
+  // 署名付き URL の作り直し用（どれも画面には関係ないので、state ではなく ref）
+  const recordsRef = useRef([]) // 最新の records（非同期の処理の中から読む）
+  const signedAtRef = useRef(null) // 最後に「すべての写真の署名」に成功した時刻。null なら、作り直しの対象
+  const lastAttemptRef = useRef(null) // 最後に作り直しを試みた時刻（成功・失敗どちらも）
+  const inFlightRef = useRef(false) // 作り直しの通信中かどうか
+
+  useEffect(() => {
+    recordsRef.current = records
+  }, [records])
+
   function fetchAll() {
     return Promise.all([fetchRecords(), fetchTags()])
       .then(([r, t]) => {
+        // 取得時の署名は、すべての写真に src が付いていれば成功とみなす（一部でも付いていなければ null のまま。
+        // 失敗の理由までは分からないので、その場合は最初の確認で1回だけ作り直しを試みる）
+        signedAtRef.current = r.every((rec) => rec.photos.every((p) => p.src)) ? Date.now() : null
+        lastAttemptRef.current = null
         setRecords(sortNewestFirst(r))
         setTags(t)
       })
@@ -34,6 +77,47 @@ export function RecordsProvider({ children }) {
     fetchAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 写真の署名付き URL を、期限が切れる前に作り直す。
+  // きっかけは「画面が見えるようになった／ページが戻ってきた／60秒ごとの確認」だけ（state の変化では動かさない）。
+  // 確認しても、条件がそろわなければ通信しない。作り直すのは src だけで、loading・error・記録の中身には触れない。
+  useEffect(() => {
+    if (loading || error) return undefined
+
+    function check() {
+      if (document.visibilityState !== 'visible') return
+      if (inFlightRef.current) return
+      const now = Date.now()
+      if (signedAtRef.current !== null && now - signedAtRef.current < STALE_MS) return
+      if (lastAttemptRef.current !== null && now - lastAttemptRef.current < FAILED_RETRY_MS) return
+      const paths = [...new Set(recordsRef.current.flatMap((r) => r.photos.map((p) => p.path).filter(Boolean)))]
+      if (paths.length === 0) return
+
+      inFlightRef.current = true
+      lastAttemptRef.current = now
+      refreshPhotoUrls(paths)
+        .then((urlMap) => {
+          if (!urlMap) return // 失敗（警告は出済み）。signedAt は更新しない → 5分後に再試行
+          signedAtRef.current = now
+          setRecords((prev) => applyPhotoUrls(prev, urlMap))
+        })
+        .catch((err) => console.warn('写真の表示用URLの更新に失敗しました', err))
+        .finally(() => {
+          inFlightRef.current = false
+        })
+    }
+
+    const onVisibility = () => check()
+    const onPageShow = () => check()
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pageshow', onPageShow)
+    const timer = setInterval(check, CHECK_EVERY_MS)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pageshow', onPageShow)
+      clearInterval(timer)
+    }
+  }, [loading, error])
 
   // 失敗したあと、もう一度読み込む
   function reload() {

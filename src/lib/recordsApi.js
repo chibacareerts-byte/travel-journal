@@ -62,12 +62,13 @@ const SIGNED_URL_SECONDS = 3600
 
 // 保存パスの一覧から、表示用の署名付き URL を「まとめて」作る → { path: url }
 // 作れなかった写真は入れない（呼び出し側で src: null になり、プレースホルダーが出る）
-async function signPaths(paths) {
+// 署名付き URL を作る本体。API 自体が失敗したときは null を返す（一部の写真だけ作れなかったときは、作れたぶんだけの { path: url }）
+async function requestSignedUrls(paths) {
   if (paths.length === 0) return {}
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(paths, SIGNED_URL_SECONDS)
   if (error) {
     console.warn('写真の表示用URLを作れませんでした', error)
-    return {}
+    return null
   }
   const map = {}
   data.forEach((item) => {
@@ -75,6 +76,16 @@ async function signPaths(paths) {
     else console.warn(`写真の表示用URLを作れませんでした: ${item.path}`, item.error)
   })
   return map
+}
+
+async function signPaths(paths) {
+  return (await requestSignedUrls(paths)) ?? {}
+}
+
+// 表示中の写真の署名付き URL だけを作り直す（records・tags は取得しない。DB にも触れない）。
+// 戻り値：{ path: 新しい URL }（重複した path は1つにまとめる）／通信などで API 自体が失敗したら null
+export async function refreshPhotoUrls(paths) {
+  return requestSignedUrls([...new Set(toArray(paths).filter(Boolean))])
 }
 
 const pathsOf = (rows) => rows.flatMap((row) => toArray(row.photos).map((item) => item && item.path).filter(Boolean))
