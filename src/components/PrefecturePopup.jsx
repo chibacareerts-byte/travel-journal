@@ -12,7 +12,7 @@ import { PREFECTURE_EN } from '../data/prefectureNames'
 import { useRecords } from '../lib/RecordsContext'
 import { formatDate, getPrefectureSummary } from '../lib/recordUtils'
 
-const CLOSE_MS = 200 // 閉じるアニメーションの長さ（CSS と合わせる）
+const CLOSE_MS = 160 // 閉じるアニメーションの長さ（CSS と合わせる）
 
 export default function PrefecturePopup({ prefectureId, onClose }) {
   const { records, loading, error } = useRecords()
@@ -76,15 +76,12 @@ export default function PrefecturePopup({ prefectureId, onClose }) {
         <header className="pop__head">
           <p className="pop__en">{PREFECTURE_EN[pref.id]}</p>
           <h2 className="pop__name">{pref.name}</h2>
-          <p className={visited ? 'pop__status' : 'pop__status pop__status--none'}>
-            {visited
-              ? `${count} ${count === 1 ? 'PLACE' : 'PLACES'} VISITED`
-              : loading
-                ? '読み込み中…'
-                : error
-                  ? '記録を読み込めませんでした'
-                  : 'まだ記録はありません'}
-          </p>
+          {/* 訪問件数は表示しない。訪問済みのときは、県名だけでこのまま下の写真・リンクへ続く */}
+          {!visited && (
+            <p className="pop__status pop__status--none">
+              {loading ? '読み込み中…' : error ? '記録を読み込めませんでした' : 'まだ記録はありません'}
+            </p>
+          )}
         </header>
 
         <div className="pop__stage">

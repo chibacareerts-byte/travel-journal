@@ -16,11 +16,23 @@ const LABEL_SHOW_DELAY_MS = 60 // すばやいスクロール操作のとき、�
 const ARM_MS = 220 // これ以上、指を置いたままにしてから動かすと「県を探る操作」とみなす
 const SLOP_PX = 10 // これ以上すぐに動いたら「ページのスクロール」とみなす
 
+// 小さい・細長い県（境界のすき間や海上に近い部分）でも選びやすいよう、
+// ちょうどその座標に無ければ、ごく近く（数px四方）だけ探して拾う。
+const NEAR_PX = 5
+const NEAR_OFFSETS = [
+  [0, 0],
+  [NEAR_PX, 0], [-NEAR_PX, 0], [0, NEAR_PX], [0, -NEAR_PX],
+  [NEAR_PX, NEAR_PX], [-NEAR_PX, NEAR_PX], [NEAR_PX, -NEAR_PX], [-NEAR_PX, -NEAR_PX],
+]
+
 // 画面上の座標(x, y)にある都道府県の番号を返す（なければ null）
 function prefectureAt(x, y) {
-  const el = document.elementFromPoint(x, y)
-  const hit = el && el.closest('[data-pref]')
-  return hit ? Number(hit.dataset.pref) : null
+  for (const [dx, dy] of NEAR_OFFSETS) {
+    const el = document.elementFromPoint(x + dx, y + dy)
+    const hit = el && el.closest('[data-pref]')
+    if (hit) return Number(hit.dataset.pref)
+  }
+  return null
 }
 
 export default function JapanMap({ visitedIds, onSelect, onPreview, selectedId = null, previewId = null }) {
@@ -138,14 +150,22 @@ export default function JapanMap({ visitedIds, onSelect, onPreview, selectedId =
     onSelect(id)
   }
 
+  const visitedSet = new Set(visitedIds)
+
   return (
     <div className="japan-map-wrap" ref={wrapRef} onPointerMove={onPointerMove} onPointerLeave={() => preview(null)}>
-      <svg className="japan-map" viewBox={MAP_VIEWBOX} role="group" aria-label="日本地図">
+      <svg
+        className="japan-map"
+        viewBox={MAP_VIEWBOX}
+        role="group"
+        aria-label="日本地図"
+        shapeRendering="geometricPrecision"
+      >
         {/* 沖縄のための小さな枠 */}
         <rect x="3" y="3" width="94" height="74" className="japan-map__inset" />
 
         {PREFECTURES.map((p) => {
-          const visited = visitedIds.includes(p.id)
+          const visited = visitedSet.has(p.id)
           return (
             <path
               key={p.id}

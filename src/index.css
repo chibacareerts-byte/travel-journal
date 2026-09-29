@@ -469,7 +469,7 @@ img {
 /* ---------- 7. ホーム（地図） ---------- */
 .home-map {
   position: relative;
-  padding: 0 var(--gutter);
+  padding: 6px var(--gutter) 0;
 }
 /* 地図の背景：訪問数に応じて、左から淡い藍色に染まる。
    境界線やゲージにならないよう、右端と上下はぼかして背景に溶かす。
@@ -502,17 +502,17 @@ img {
   height: auto;
 }
 .japan-map__inset {
-  fill: none;
+  fill: rgba(30, 75, 122, 0.025); /* 沖縄だけ別枠であることが分かる、ごく薄い地図帳ふうの下地 */
   stroke: var(--line);
   stroke-width: 0.8;
 }
 .pref {
   fill: var(--line);
   stroke: var(--white);
-  stroke-width: 0.6;
+  stroke-width: 0.75;
   stroke-linejoin: round;
   cursor: pointer;
-  transition: fill 0.15s;
+  transition: fill 0.12s;
 }
 .pref--visited {
   fill: var(--indigo);
@@ -522,18 +522,25 @@ img {
 }
 .pref-outline {
   fill: none;
-  stroke: var(--indigo-sub);
-  stroke-width: 1.3;
+  stroke: var(--indigo);
+  stroke-width: 1.4;
   stroke-linejoin: round;
   pointer-events: none;
 }
-/* 触れているだけの県：選択中より細く薄い線（塗り色は変えない） */
+/* 触れている・乗せているだけの県：選択中より細く薄い線（決定＝選択中とはっきり分ける） */
 .pref-outline--preview {
+  stroke: var(--indigo-sub);
   stroke-width: 0.8;
   stroke-opacity: 0.55;
 }
+/* 乗せた・押した瞬間の色：訪問済みは指標色(indigo-sub)、未訪問はグレー側で少し濃く。
+   どちらも「訪問済みの濃い藍色」には寄せないので、乗せている間も訪問済み/未訪問の違いが分かる */
 .pref:hover,
 .pref:active {
+  fill: #c3cfdb;
+}
+.pref--visited:hover,
+.pref--visited:active {
   fill: var(--indigo-sub);
 }
 .pref:focus-visible {
@@ -1170,9 +1177,12 @@ img {
   left: var(--gutter);
   top: 19%;
   pointer-events: none;
-  animation: label-in 0.2s ease-out both;
+  animation: label-in 0.15s ease-out both;
 }
 .map-label__code {
+  display: inline-block;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--indigo-sub);
   font-family: 'Cormorant Garamond', var(--font-serif);
   font-size: 14px;
   line-height: 1.2;
@@ -1208,13 +1218,13 @@ img {
 }
 .pop.is-closing {
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.16s ease;
 }
 .pop__backdrop {
   position: absolute;
   inset: 0;
   background: var(--bg); /* 不透明。表示のときだけ静かにフェードする */
-  animation: pop-fade 0.26s ease-out both;
+  animation: pop-fade 0.18s ease-out both;
 }
 .pop__panel {
   position: relative;
@@ -1238,7 +1248,7 @@ img {
 }
 .pop__head {
   flex: none;
-  animation: pop-text 0.28s ease-out 0.08s both;
+  animation: pop-text 0.2s ease-out 0.05s both;
 }
 .pop__en {
   font-size: 12px;
@@ -1277,7 +1287,7 @@ img {
 .pop__shape {
   width: 85%; /* 輪郭の表示サイズ。縦長・横長どちらの県でも、まわりに余白が残る */
   height: 85%;
-  animation: pop-rise 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) 0.04s both;
+  animation: pop-rise 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) 0.03s both;
 }
 .silhouette {
   display: block;
@@ -1294,7 +1304,7 @@ img {
 
 .pop__foot {
   flex: none;
-  animation: pop-text 0.28s ease-out 0.14s both;
+  animation: pop-text 0.2s ease-out 0.1s both;
 }
 .pop__plate {
   display: flex;
