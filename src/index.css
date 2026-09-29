@@ -388,6 +388,32 @@ img {
   padding-bottom: 10px;
 }
 
+/* 並べ替え（新しい順・古い順）。一覧の上、控えめな2択トグルだけ */
+.sort-bar {
+  padding: 0 var(--gutter) 20px;
+}
+.sort-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.sort-toggle__btn {
+  min-height: 40px;
+  padding: 0 16px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--text-soft);
+  background: var(--white);
+}
+.sort-toggle__btn + .sort-toggle__btn {
+  border-left: 1px solid var(--line);
+}
+.sort-toggle__btn.is-active {
+  background: var(--indigo);
+  color: var(--white);
+}
+
 .entry-list {
   display: flex;
   flex-direction: column;

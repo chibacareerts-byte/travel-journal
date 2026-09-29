@@ -4,6 +4,12 @@ export function sortNewestFirst(records) {
   return [...records].sort((a, b) => b.visitedOn.localeCompare(a.visitedOn))
 }
 
+// 訪問日の古い順。sort は安定ソートなので、同じ訪問日の記録どうしは
+// 渡された配列の並び（＝呼び出し側でのいまの表示順）のまま残る
+export function sortOldestFirst(records) {
+  return [...records].sort((a, b) => a.visitedOn.localeCompare(b.visitedOn))
+}
+
 // '2025-11-03' → '2025年11月3日'
 export function formatDate(iso) {
   const [y, m, d] = iso.split('-').map(Number)
