@@ -2,9 +2,10 @@
 // 画面側（pages / components）は、この変換済みの形だけを扱います。
 //
 // アプリ内の1件の形:
-//   { id: '12', placeName, prefectureId: 13, visitedOn: '2026-05-04', photos: [{ id, src, tone }], memo, tags: [] }
+//   { id: '12', placeName, prefectureId: 13, visitedOn: '2026-05-04', photos: [{ id, src, tone }], memo, tags: [], tripId: '3' | null }
 // records テーブルの1行:
-//   { id: 12(int8), user_id, place_name, prefecture: '東京都', visited_date, memo, tags(jsonb), photos(jsonb), cover_photo }
+//   { id: 12(int8), user_id, place_name, prefecture: '東京都', visited_date, memo, tags(jsonb), photos(jsonb), cover_photo, trip_id(int8 | null) }
+//   trip_id は supabase/trips.sql で追加する列。まだ無い DB でも動く（tripId は null になる）
 //
 // 写真は Supabase Storage（Private バケット travel-photos）に保存します。
 //   保存先   : <user_id>/<record_id>/<UUID>.jpg
@@ -50,8 +51,20 @@ function toRecord(row, urlMap = {}) {
       .filter(Boolean),
     memo: row.memo || '',
     tags: toArray(row.tags),
+    tripId: toTripId(row.trip_id), // 旅に入っていない・trip_id の列がまだ無い（trips.sql 未実行）ときは null
   }
 }
+
+// trip_id（int8）→ アプリ内の旅の id（文字列）。無ければ null
+function toTripId(value) {
+  return value === null || value === undefined ? null : String(value)
+}
+
+// 旅（trip_id）を書き込むかどうか。
+//   input.tripId === undefined … 旅の機能が使えない（trips.sql 未実行など）→ trip_id の列には一切触れない
+//   null / '3' など          … その値を書き込む（null = 旅に入れない）
+const hasTrip = (input) => input.tripId !== undefined
+const tripColumn = (input) => (hasTrip(input) ? { trip_id: input.tripId === null ? null : Number(input.tripId) } : {})
 
 // ---- 写真（Supabase Storage）----
 
@@ -247,6 +260,7 @@ export async function fetchTags() {
 //   3. 写真を <user_id>/<record_id>/<UUID>.jpg にアップロード（最大3枚を同時に。縮小が終わった写真から順に）
 //   4. records.photos と cover_photo（1枚目の path）を更新（同時に、表示用の署名付き URL も作る）
 //   1〜4 のどこかで失敗したら、アップロード済み（送信中だったものも含む）の写真と作った記録を削除して、保存前の状態に戻す
+//   旅（input.tripId）は 2 の INSERT に含める（通信は増えない）。undefined のときは trip_id に触れない
 //   ※ 縮小・アップロードの途中で失敗したときの取り消しは、記録を先に作っている分、これまでより「記録の削除」が1回増える
 export async function createRecord(input) {
   const perf = createPerf('新規記録')
@@ -273,6 +287,7 @@ export async function createRecord(input) {
         tags: input.tags,
         photos: [],
         cover_photo: null,
+        ...tripColumn(input), // 旅：保存の通信は増やさず、同じ INSERT に1列足すだけ
       })
       .select()
       .single()
@@ -391,22 +406,26 @@ export async function updateRecord(id, input) {
     visited_date: input.visitedOn,
     memo: input.memo,
     tags: input.tags,
+    ...tripColumn(input), // 旅（旅の機能が使えるときだけ。同じ UPDATE に1列足すだけ）
   }
+  // 旅の機能が使えないときは、trip_id を読み取りにも含めない（列が無くてもエラーにならないように）
+  const tripSelect = hasTrip(input) ? ', trip_id' : ''
   const toFields = (row) => ({
     placeName: row.place_name,
     prefectureId: prefecture.id,
     visitedOn: row.visited_date,
     memo: row.memo || '',
     tags: toArray(row.tags),
+    ...(hasTrip(input) ? { tripId: toTripId(row.trip_id) } : {}),
   })
 
-  // ---- 写真を変えない場合：文字情報の5列だけ ----
+  // ---- 写真を変えない場合：文字情報の5列だけ（旅の機能があれば trip_id も）----
   if (input.photos === undefined) {
     const { data, error } = await supabase
       .from('records')
       .update(textColumns)
       .eq('id', numericId)
-      .select('id, place_name, prefecture, visited_date, memo, tags')
+      .select(`id, place_name, prefecture, visited_date, memo, tags${tripSelect}`)
     if (error) throw saveError('記録を更新できませんでした。もう一度お試しください。', error)
     if (!data || data.length === 0) throw saveError('記録を更新できませんでした。記録が見つからないか、更新する権限がありません。')
     return { fields: toFields(data[0]), failedPaths: [] }
@@ -510,7 +529,7 @@ export async function updateRecord(id, input) {
       .from('records')
       .update({ ...textColumns, photos: finalPhotos, cover_photo: finalPaths[0] ?? null })
       .eq('id', numericId)
-      .select('id, place_name, prefecture, visited_date, memo, tags, photos, cover_photo'),
+      .select(`id, place_name, prefecture, visited_date, memo, tags, photos, cover_photo${tripSelect}`),
   )
 
   let row = updated && updated[0]
@@ -519,7 +538,7 @@ export async function updateRecord(id, input) {
     console.error('記録の更新で通信エラーが起きました。DB の状態を確かめます', updateError)
     const { data: check, error: checkError } = await supabase
       .from('records')
-      .select('id, place_name, prefecture, visited_date, memo, tags, photos, cover_photo')
+      .select(`id, place_name, prefecture, visited_date, memo, tags, photos, cover_photo${tripSelect}`)
       .eq('id', numericId)
       .maybeSingle()
     if (checkError || !check) {

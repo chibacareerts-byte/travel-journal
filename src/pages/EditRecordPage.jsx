@@ -1,4 +1,6 @@
-// 記録の編集。場所名・都道府県・訪問日・写真・メモ・タグを編集できます。
+// 記録の編集。場所名・都道府県・訪問日・写真・旅・メモ・タグを編集できます。
+// 追加した写真の撮影日（EXIF）が取れたら表示し、その日を訪問日に設定できます（自動では設定しません）。
+// 旅は、trips.sql を実行して旅の機能が使えるときだけ表示します。
 // 写真は「保存する」を押したときに、はじめて Storage へ保存・削除されます（キャンセルしたら何も変わりません）。
 import { useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
@@ -7,7 +9,11 @@ import BestListsField, { useRecordBest } from '../components/BestListsField'
 import PhotoEditor from '../components/PhotoEditor'
 import RecordFields from '../components/RecordFields'
 import RecordsGate from '../components/RecordsGate'
+import ShotDatePicker from '../components/ShotDatePicker'
+import TripField from '../components/TripField'
 import { useRecords } from '../lib/RecordsContext'
+import { tripDraftIsEmpty } from '../lib/tripUtils'
+import { useShotDates } from '../lib/useShotDates'
 
 export default function EditRecordPage() {
   const { id } = useParams()
@@ -32,7 +38,7 @@ export default function EditRecordPage() {
 function EditForm({ record }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { updateRecord } = useRecords()
+  const { updateRecord, tripsReady, ensureTrip } = useRecords()
 
   const [values, setValues] = useState({
     placeName: record.placeName,
@@ -49,8 +55,12 @@ function EditForm({ record }) {
   const [saveError, setSaveError] = useState('')
   const [recordSaved, setRecordSaved] = useState(false) // 記録の保存が済んだあと、MY BESTだけ失敗したとき true（再試行では記録を保存し直さない）
   const best = useRecordBest(record.id)
+  const [trip, setTrip] = useState({ tripId: record.tripId ?? null, newTitle: null }) // 旅（TripField の値）
+  const shotDates = useShotDates(photoItems) // 今回追加した写真の key → 撮影日
+  const photoDates = photoItems.map((item) => shotDates.get(item.key)).filter(Boolean)
 
-  const canSave = values.placeName.trim() !== '' && values.prefectureId !== '' && !saving
+  const tripBlocked = tripsReady && tripDraftIsEmpty(trip) // 新しい旅の名前が空のまま
+  const canSave = values.placeName.trim() !== '' && values.prefectureId !== '' && !tripBlocked && !saving
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -59,6 +69,16 @@ function EditForm({ record }) {
     setSaveError('')
     try {
       if (!recordSaved) {
+        // 旅：機能が使えないときは undefined（trip_id に一切触れない）。新しい旅は、ここで作る（同じ名前があればそれを使う）
+        let tripId
+        if (tripsReady) {
+          tripId = trip.tripId
+          if (trip.newTitle !== null) {
+            const made = await ensureTrip(trip.newTitle)
+            tripId = made.id
+            setTrip({ tripId: made.id, newTitle: null }) // もう一度保存するときは、作った旅をそのまま使う
+          }
+        }
         // 写真を変えたときだけ、写真も更新する（変えていなければ、写真には一切触れない）
         const photosChanged =
           photoItems.some((item) => item.kind === 'new') ||
@@ -70,6 +90,7 @@ function EditForm({ record }) {
           visitedOn: values.visitedOn,
           memo: values.memo.trim(),
           tags: values.tags,
+          tripId,
           photos: photosChanged
             ? photoItems.map((item) =>
                 item.kind === 'new' ? { kind: 'new', file: item.file } : { kind: 'existing', id: item.id, path: item.path },
@@ -128,7 +149,14 @@ function EditForm({ record }) {
           {...values}
           onChange={(field, value) => setValues((prev) => ({ ...prev, [field]: value }))}
         >
-          <PhotoEditor items={photoItems} onChange={setPhotoItems} />
+          <PhotoEditor items={photoItems} onChange={setPhotoItems} dates={shotDates}>
+            <ShotDatePicker
+              dates={photoDates}
+              visitedOn={values.visitedOn}
+              onPick={(d) => setValues((prev) => ({ ...prev, visitedOn: d }))}
+            />
+          </PhotoEditor>
+          {tripsReady && <TripField value={trip} onChange={setTrip} />}
         </RecordFields>
 
         <BestListsField best={best} />
@@ -137,7 +165,13 @@ function EditForm({ record }) {
           <button type="submit" className="btn-primary" disabled={!canSave}>
             {saving ? '保存中…' : '保存する'}
           </button>
-          {!canSave && !saving && <p className="field__hint">場所名と都道府県を入力すると保存できます。</p>}
+          {!canSave && !saving && (
+            <p className="field__hint">
+              {values.placeName.trim() !== '' && values.prefectureId !== '' && tripBlocked
+                ? '新しい旅の名前を入力するか、「やめる」を押してください。'
+                : '場所名と都道府県を入力すると保存できます。'}
+            </p>
+          )}
           {saveError && <p className="notice" role="alert">{saveError}</p>}
         </div>
       </form>

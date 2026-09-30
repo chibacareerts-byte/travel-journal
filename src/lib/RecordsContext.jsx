@@ -12,6 +12,8 @@ import {
   updateRecord as saveRecordChanges,
 } from './recordsApi'
 import { sortNewestFirst } from './recordUtils'
+import { createTrip, fetchTrips } from './tripsApi'
+import { cleanTripTitle } from './tripUtils'
 import { DEFAULT_TAGS } from '../data/tags'
 
 const RecordsContext = createContext(null)
@@ -43,6 +45,10 @@ export function RecordsProvider({ children }) {
   const [loading, setLoading] = useState(true)
   // 読み込みに失敗したとき true。「記録が0件」とは別の状態として画面に伝える
   const [error, setError] = useState(false)
+  // 旅（trips）。trips.sql をまだ実行していない・取得に失敗したときは tripsReady = false にして、
+  // 旅の欄や旅ごとの表示を出さない（記録の表示・保存は今まで通り。trip_id にも触れない）
+  const [trips, setTrips] = useState([])
+  const [tripsReady, setTripsReady] = useState(false)
 
   // 署名付き URL の作り直し用（どれも画面には関係ないので、state ではなく ref）
   const recordsRef = useRef([]) // 最新の records（非同期の処理の中から読む）
@@ -55,14 +61,24 @@ export function RecordsProvider({ children }) {
   }, [records])
 
   function fetchAll() {
-    return Promise.all([fetchRecords(), fetchTags()])
-      .then(([r, t]) => {
+    // 旅は記録と同時に取りに行く（待ち時間を増やさない）。失敗しても記録の読み込みは失敗にしない
+    const tripsLoad = fetchTrips().then(
+      (list) => ({ ok: true, list }),
+      (err) => {
+        console.info('旅の機能は使えません（supabase/trips.sql が未実行、または取得に失敗）。記録は今まで通り表示します。', err && (err.code || err.message))
+        return { ok: false, list: [] }
+      },
+    )
+    return Promise.all([fetchRecords(), fetchTags(), tripsLoad])
+      .then(([r, t, tr]) => {
         // 取得時の署名は、すべての写真に src が付いていれば成功とみなす（一部でも付いていなければ null のまま。
         // 失敗の理由までは分からないので、その場合は最初の確認で1回だけ作り直しを試みる）
         signedAtRef.current = r.every((rec) => rec.photos.every((p) => p.src)) ? Date.now() : null
         lastAttemptRef.current = null
         setRecords(sortNewestFirst(r))
         setTags(t)
+        setTrips(tr.list)
+        setTripsReady(tr.ok)
       })
       .catch((err) => {
         // 読み込み中のまま止まらないようにし、失敗したことを error で伝える（records は空のまま＝「0件」ではない）
@@ -171,7 +187,30 @@ export function RecordsProvider({ children }) {
     return clean
   }
 
-  const value = { records, tags, loading, error, reload, addRecord, addTag, updateRecord, removeRecord }
+  // 旅を用意する：同じ名前の旅がすでにあればそれを使い、なければ作る（記録の保存の直前に呼ぶ）
+  async function ensureTrip(title) {
+    const clean = cleanTripTitle(title)
+    const existing = trips.find((t) => t.title === clean)
+    if (existing) return existing
+    const created = await createTrip(clean)
+    setTrips((prev) => [...prev, created])
+    return created
+  }
+
+  const value = {
+    records,
+    tags,
+    trips,
+    tripsReady,
+    loading,
+    error,
+    reload,
+    addRecord,
+    addTag,
+    ensureTrip,
+    updateRecord,
+    removeRecord,
+  }
   return <RecordsContext.Provider value={value}>{children}</RecordsContext.Provider>
 }
 

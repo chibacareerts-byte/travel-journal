@@ -4,15 +4,21 @@
 //
 // items: [{ key, kind: 'existing', id, path, src } | { key, kind: 'new', file, src(blob URL) }]
 // ここでは画面上の並びを変えるだけです。Storage への保存・削除は、「保存する」を押したあと recordsApi.js が行います。
+//
+// dates    : Map(写真の key → 撮影日)。今回追加した写真のうち、撮影日が取れたものだけ写真の下に表示する
+// children : 写真欄の最後に差し込むもの（撮影日を訪問日に設定する欄）
 
 import { useState } from 'react'
+import { formatDotDate } from '../lib/recordUtils'
 
 export const MAX_PHOTOS = 10
 
-export default function PhotoEditor({ items, onChange }) {
+export default function PhotoEditor({ items, onChange, dates, children }) {
   const [selectedKey, setSelectedKey] = useState(null)
   const index = items.findIndex((item) => item.key === selectedKey)
   const hasSelection = index !== -1
+  const dateOf = (item) => (dates && dates.get(item.key)) || null
+  const anyDate = items.some((item) => dateOf(item))
 
   function handleFiles(e) {
     const room = MAX_PHOTOS - items.length
@@ -50,19 +56,21 @@ export default function PhotoEditor({ items, onChange }) {
         <span className="field__count">{items.length} / {MAX_PHOTOS}</span>
       </div>
 
-      <div className="photo-picker">
+      <div className={anyDate ? 'photo-picker photo-picker--dated' : 'photo-picker'}>
         {items.map((item, i) => (
-          <button
-            key={item.key}
-            type="button"
-            className={item.key === selectedKey ? 'photo-picker__item photo-picker__select is-selected' : 'photo-picker__item photo-picker__select'}
-            onClick={() => setSelectedKey(item.key === selectedKey ? null : item.key)}
-            aria-pressed={item.key === selectedKey}
-            aria-label={`${i + 1}枚目の写真${item.key === selectedKey ? '（選択中）' : ''}`}
-          >
-            <img src={item.src} alt="" />
-            {i === 0 && <span className="photo-picker__cover">表紙</span>}
-          </button>
+          <div key={item.key} className="photo-picker__cell">
+            <button
+              type="button"
+              className={item.key === selectedKey ? 'photo-picker__item photo-picker__select is-selected' : 'photo-picker__item photo-picker__select'}
+              onClick={() => setSelectedKey(item.key === selectedKey ? null : item.key)}
+              aria-pressed={item.key === selectedKey}
+              aria-label={`${i + 1}枚目の写真${item.key === selectedKey ? '（選択中）' : ''}`}
+            >
+              <img src={item.src} alt="" />
+              {i === 0 && <span className="photo-picker__cover">表紙</span>}
+            </button>
+            {dateOf(item) && <span className="photo-picker__date">{formatDotDate(dateOf(item))}</span>}
+          </div>
         ))}
         {items.length < MAX_PHOTOS && (
           <label className="photo-picker__add">
@@ -85,6 +93,7 @@ export default function PhotoEditor({ items, onChange }) {
         </button>
       </div>
       <p className="field__hint">先頭の写真が表紙になります。写真をタップして選ぶと、並べ替えや削除ができます。</p>
+      {children}
     </div>
   )
 }

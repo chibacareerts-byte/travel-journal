@@ -10,6 +10,11 @@ export function sortOldestFirst(records) {
   return [...records].sort((a, b) => a.visitedOn.localeCompare(b.visitedOn))
 }
 
+// '2025-11-03' → '2025.11.03'（記録一覧のカード・旅の期間・撮影日の表示用）
+export function formatDotDate(iso) {
+  return iso.replaceAll('-', '.')
+}
+
 // '2025-11-03' → '2025年11月3日'
 export function formatDate(iso) {
   const [y, m, d] = iso.split('-').map(Number)

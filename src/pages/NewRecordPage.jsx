@@ -1,15 +1,22 @@
-// 4. 新規記録。入力項目は「場所名・都道府県・訪問日・写真・メモ・タグ」だけ。
+// 4. 新規記録。入力項目は「場所名・都道府県・訪問日・写真・旅・メモ・タグ」。
+// 写真を選ぶと、撮影日（EXIF）が取れた写真にだけ日付を表示し、その日を訪問日に設定できる（自動では設定しない）。
+// 旅は、trips.sql を実行して旅の機能が使えるときだけ表示する。
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import RecordFields, { today } from '../components/RecordFields'
+import ShotDatePicker from '../components/ShotDatePicker'
+import TripField from '../components/TripField'
 import { useRecords } from '../lib/RecordsContext'
+import { formatDotDate } from '../lib/recordUtils'
+import { tripDraftIsEmpty } from '../lib/tripUtils'
+import { useShotDates } from '../lib/useShotDates'
 
 const MAX_PHOTOS = 10
 
 export default function NewRecordPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { addRecord } = useRecords()
+  const { addRecord, tripsReady, ensureTrip } = useRecords()
 
   const [placeName, setPlaceName] = useState('')
   // ポップアップの「この県の記録をつける」から来たときだけ、URL に ?prefecture=番号 が付く
@@ -19,6 +26,7 @@ export default function NewRecordPage() {
   const [photos, setPhotos] = useState([]) // { id, src }
   const [memo, setMemo] = useState('')
   const [tags, setTags] = useState([])
+  const [trip, setTrip] = useState({ tripId: null, newTitle: null }) // 旅（TripField の値）
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
 
@@ -28,7 +36,11 @@ export default function NewRecordPage() {
     setPrefectureId(prefectureParam)
   }, [prefectureParam])
 
-  const canSave = placeName.trim() !== '' && prefectureId !== '' && !saving
+  const shotDates = useShotDates(photos) // 写真の id → 撮影日（取れなければ null）
+  const photoDates = photos.map((p) => shotDates.get(p.id)).filter(Boolean)
+
+  const tripBlocked = tripsReady && tripDraftIsEmpty(trip) // 新しい旅の名前が空のまま
+  const canSave = placeName.trim() !== '' && prefectureId !== '' && !tripBlocked && !saving
 
   // 共通の入力欄（RecordFields）から届いた変更を、それぞれの state に反映する
   const fieldSetters = { placeName: setPlaceName, prefectureId: setPrefectureId, visitedOn: setVisitedOn, memo: setMemo, tags: setTags }
@@ -53,6 +65,25 @@ export default function NewRecordPage() {
     if (!canSave) return
     setSaving(true)
     setSaveError('')
+
+    // 旅：機能が使えないときは undefined（trip_id に一切触れない）。新しい旅は、ここで作る（同じ名前があればそれを使う）
+    let tripId
+    if (tripsReady) {
+      tripId = trip.tripId
+      if (trip.newTitle !== null) {
+        try {
+          const made = await ensureTrip(trip.newTitle)
+          tripId = made.id
+          setTrip({ tripId: made.id, newTitle: null }) // もう一度保存するときは、作った旅をそのまま使う
+        } catch (error) {
+          console.error('旅を作れませんでした', error)
+          setSaveError(error.userMessage || '旅を作れませんでした。もう一度お試しください。')
+          setSaving(false)
+          return
+        }
+      }
+    }
+
     try {
       const created = await addRecord({
         placeName: placeName.trim(),
@@ -61,6 +92,7 @@ export default function NewRecordPage() {
         photos,
         memo: memo.trim(),
         tags,
+        tripId,
       })
       navigate(`/record/${created.id}`, { replace: true })
     } catch (error) {
@@ -92,11 +124,12 @@ export default function NewRecordPage() {
               <span>写真</span>
               <span className="field__count">{photos.length} / {MAX_PHOTOS}</span>
             </div>
-            <div className="photo-picker">
+            <div className={photoDates.length > 0 ? 'photo-picker photo-picker--dated' : 'photo-picker'}>
               {photos.map((p, i) => (
                 <div key={p.id} className="photo-picker__item">
                   <img src={p.src} alt="" />
                   {i === 0 && <span className="photo-picker__cover">表紙</span>}
+                  {shotDates.get(p.id) && <span className="photo-picker__date">{formatDotDate(shotDates.get(p.id))}</span>}
                   <button
                     type="button"
                     className="photo-picker__remove"
@@ -116,7 +149,9 @@ export default function NewRecordPage() {
               )}
             </div>
             <p className="field__hint">1枚目が記録の表紙になります。</p>
+            <ShotDatePicker dates={photoDates} visitedOn={visitedOn} onPick={setVisitedOn} />
           </div>
+          {tripsReady && <TripField value={trip} onChange={setTrip} />}
         </RecordFields>
 
         <div className="form__submit">
@@ -124,7 +159,13 @@ export default function NewRecordPage() {
             {saving ? '保存中…' : '記録する'}
           </button>
           {saving && photos.length > 0 && <p className="field__hint" role="status">写真を保存しています</p>}
-          {!canSave && !saving && <p className="field__hint">場所名と都道府県を入力すると保存できます。</p>}
+          {!canSave && !saving && (
+            <p className="field__hint">
+              {placeName.trim() !== '' && prefectureId !== '' && tripBlocked
+                ? '新しい旅の名前を入力するか、「やめる」を押してください。'
+                : '場所名と都道府県を入力すると保存できます。'}
+            </p>
+          )}
           {saveError && <p className="notice" role="alert">{saveError}</p>}
         </div>
       </form>

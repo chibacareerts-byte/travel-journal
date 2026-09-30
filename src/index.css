@@ -16,6 +16,7 @@
   --line: #d8dfe6;
   --white: #ffffff;
   --text-soft: rgba(51, 65, 85, 0.75);
+  --card-line: #2e3238; /* 記録一覧のカードの枠（黒に近い濃いグレー） */
 
   --font-sans: 'Noto Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
   --font-serif: 'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
@@ -412,6 +413,95 @@ img {
 .sort-toggle__btn.is-active {
   background: var(--indigo);
   color: var(--white);
+}
+
+/* 記録一覧（/records だけ）：旅ごとのまとまりと、1列のカード。
+   検索・年別・都道府県ページの一覧（.entry）には影響しない */
+.trip-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 56px; /* 旅と旅（旅と、旅に入っていない記録）の間はたっぷり空ける */
+  padding: 0 12px 8px; /* 写真をなるべく今の大きさに近づけるため、左右の余白は控えめ */
+}
+.trip-head {
+  padding: 0 8px 16px; /* 文字の左端を、ページの見出し（左 20px）とそろえる */
+}
+.trip-head__label {
+  margin-bottom: 4px;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--indigo-sub);
+}
+.trip-head__title {
+  overflow-wrap: anywhere;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 1.35;
+  letter-spacing: 0.06em;
+  color: var(--indigo);
+}
+.trip-head__dates {
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-soft);
+}
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* 同じ旅の中のカードどうし */
+}
+.rcard {
+  display: block;
+  overflow: hidden; /* 角丸の内側に写真をおさめる */
+  /* 2px：1.5px は Chrome（Android・PC）で 1px に丸められ、iPhone と太さが変わるため、どの端末でも同じ 2px にする */
+  border: 2px solid var(--card-line);
+  border-radius: 10px;
+  background: var(--white);
+}
+.rcard:focus-visible {
+  outline: 2px solid var(--indigo-sub);
+  outline-offset: 2px;
+}
+.rcard__photo {
+  border-bottom: 1px solid var(--card-line); /* 写真と文字の間の細い境界線 */
+}
+.rcard__body {
+  padding: 12px 14px 14px;
+}
+.rcard--text .rcard__body {
+  padding: 14px 14px 16px;
+}
+.rcard__title {
+  overflow-wrap: anywhere;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
+  color: var(--indigo);
+}
+.rcard__meta {
+  margin-top: 2px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--text-soft);
+}
+.rcard__date {
+  margin-left: 0.8em;
+  font-variant-numeric: tabular-nums;
+}
+.rcard__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 8px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--indigo-sub);
 }
 
 .entry-list {
@@ -875,6 +965,85 @@ img {
 .photo-picker__plus {
   font-size: 22px;
   line-height: 1;
+}
+
+/* 写真の撮影日：撮影日が取れた写真の下にだけ、小さく出す（写真の大きさ・並びは変えない） */
+.photo-picker--dated {
+  row-gap: 24px; /* 日付の1行ぶん */
+  padding-bottom: 18px; /* 最後の行の日付が、下の説明文に重ならないように */
+}
+.photo-picker__cell {
+  position: relative;
+}
+.photo-picker__cell > .photo-picker__item {
+  width: 100%;
+}
+.photo-picker__date {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-soft);
+  pointer-events: none;
+}
+/* 撮影日を訪問日に設定（同じ日付は1つにまとめる） */
+.shot-dates {
+  margin-top: 14px;
+}
+.shot-dates__label {
+  margin-bottom: 8px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--text-soft);
+}
+.shot-dates__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.shot-date {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--indigo-sub);
+  border-radius: 5px;
+  background: var(--white);
+  color: var(--indigo);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.shot-date--wide {
+  font-size: 13px;
+}
+.shot-date.is-on {
+  border-color: var(--indigo);
+  background: var(--indigo);
+  color: var(--white);
+}
+
+/* 旅の選択 */
+.trip-field__new {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 2px;
+  padding: 0 2px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--indigo);
+}
+.trip-field__create {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
 }
 
 .form__submit {

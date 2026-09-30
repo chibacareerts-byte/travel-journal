@@ -1,23 +1,27 @@
-// 「記録」タブ：すべての記録を、新しい順に大きな写真で。
-// 並べ替え（新しい順・古い順）は、取得済みの records をブラウザ側で並べ替えるだけ。
-// Supabase への追加通信は行わない。
+// 「記録」タブ：すべての記録を、旅ごとにまとめて1列のカードで。
+//   TRIP / 京都旅行 / 2026.09.18 — 09.20 の見出しの下に、その旅の記録が続く。
+//   旅に入っていない記録も、今まで通り日付の位置に並ぶ（見出しなし）。
+// 並べ替え（新しい順・古い順）と旅のまとめは、取得済みの records・trips をブラウザ側で並べるだけ。
+// Supabase への追加通信は行わない。旅の機能が使えない（trips.sql 未実行）ときは、すべて見出しなしで並ぶ。
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import DateSortToggle from '../components/DateSortToggle'
-import RecordEntry from '../components/RecordEntry'
+import RecordCard from '../components/RecordCard'
 import RecordsGate, { EmptyRecords } from '../components/RecordsGate'
 import { useRecords } from '../lib/RecordsContext'
-import { sortOldestFirst } from '../lib/recordUtils'
+import { buildRecordSections, formatTripRange } from '../lib/tripUtils'
+
+const NO_TRIPS = []
 
 export default function RecordsPage() {
-  const { records, loading, error } = useRecords()
+  const { records, trips, tripsReady, loading, error } = useRecords()
   const [order, setOrder] = useState('newest') // 'newest' | 'oldest'（初期は新しい順）
 
-  // records はもともと新しい順（RecordsContext）。古い順のときだけ並べ替える
-  // （sort は安定ソートなので、同じ訪問日どうしはいまの表示順のまま）。
-  const sortedRecords = useMemo(
-    () => (order === 'oldest' ? sortOldestFirst(records) : records),
-    [records, order],
+  // records はもともと新しい順（RecordsContext）。旅ごとにまとめ、旅・旅の中の記録を order の向きに並べる
+  // （安定ソートなので、同じ訪問日どうしはいまの表示順のまま）。records・trips・order が変わったときだけ計算し直す
+  const sections = useMemo(
+    () => buildRecordSections(records, tripsReady ? trips : NO_TRIPS, order),
+    [records, trips, tripsReady, order],
   )
 
   return (
@@ -41,10 +45,29 @@ export default function RecordsPage() {
         {records.length === 0 ? (
           <EmptyRecords />
         ) : (
-          <div className="entry-list">
-            {sortedRecords.map((r) => (
-              <RecordEntry key={r.id} record={r} />
-            ))}
+          <div className="trip-feed">
+            {sections.map((s) =>
+              s.type === 'trip' ? (
+                <section key={s.key} className="trip-group" aria-label={s.trip.title}>
+                  <header className="trip-head">
+                    <p className="trip-head__label">Trip</p>
+                    <h2 className="trip-head__title">{s.trip.title}</h2>
+                    <p className="trip-head__dates">{formatTripRange(s.start, s.end)}</p>
+                  </header>
+                  <div className="card-list">
+                    {s.records.map((r) => (
+                      <RecordCard key={r.id} record={r} />
+                    ))}
+                  </div>
+                </section>
+              ) : (
+                <div key={s.key} className="card-list">
+                  {s.records.map((r) => (
+                    <RecordCard key={r.id} record={r} />
+                  ))}
+                </div>
+              ),
+            )}
           </div>
         )}
       </RecordsGate>
