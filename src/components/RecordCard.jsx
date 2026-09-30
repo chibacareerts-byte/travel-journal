@@ -8,6 +8,7 @@
 //   └──────────────┘
 // 検索・年別・都道府県ページは、今まで通り RecordEntry を使う（このカードは使わない）。
 // memo：並べ替えで順番が変わるだけのときは、カードを描き直さない
+// priority：一覧のいちばん上のカードだけ true（最初に見える写真を先に読み込む）。写真は読み込めたら静かにフェードイン
 
 import { memo } from 'react'
 import { Link } from 'react-router-dom'
@@ -15,13 +16,13 @@ import Photo from './Photo'
 import { getPrefecture } from '../data/prefectures'
 import { formatDotDate } from '../lib/recordUtils'
 
-function RecordCard({ record }) {
+function RecordCard({ record, priority = false }) {
   const pref = getPrefecture(record.prefectureId)
   const hasPhoto = record.photos.length > 0 // 写真の判定は、今までと同じく photos.length だけ
 
   return (
     <Link to={`/record/${record.id}`} className={hasPhoto ? 'rcard' : 'rcard rcard--text'}>
-      {hasPhoto && <Photo photo={record.photos[0]} ratio="3 / 2" className="rcard__photo" />}
+      {hasPhoto && <Photo photo={record.photos[0]} ratio="3 / 2" className="rcard__photo" fade priority={priority} />}
       <div className="rcard__body">
         <h3 className="rcard__title">{record.placeName}</h3>
         <p className="rcard__meta">

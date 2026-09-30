@@ -1,14 +1,17 @@
 // 4. 新規記録。入力項目は「場所名・都道府県・訪問日・写真・旅・メモ・タグ」。
 // 写真を選ぶと、撮影日（EXIF）が取れた写真にだけ日付を表示し、その日を訪問日に設定できる（自動では設定しない）。
 // 旅は、trips.sql を実行して旅の機能が使えるときだけ表示する。
+// 写真は選んだ時点から裏で縮小を始めておき（usePhotoPrep）、保存のときは済んだ画像をそのまま送る。
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import RecordFields, { today } from '../components/RecordFields'
+import SaveProgress from '../components/SaveProgress'
 import ShotDatePicker from '../components/ShotDatePicker'
 import TripField from '../components/TripField'
 import { useRecords } from '../lib/RecordsContext'
 import { formatDotDate } from '../lib/recordUtils'
 import { tripDraftIsEmpty } from '../lib/tripUtils'
+import { usePhotoPrep } from '../lib/usePhotoPrep'
 import { useShotDates } from '../lib/useShotDates'
 
 const MAX_PHOTOS = 10
@@ -29,6 +32,7 @@ export default function NewRecordPage() {
   const [trip, setTrip] = useState({ tripId: null, newTitle: null }) // 旅（TripField の値）
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [progress, setProgress] = useState(null) // 保存中の写真の進み具合 { done, total }（写真なしは null）
 
   // 同じ画面のまま URL が変わったとき（例：ポップアップ経由で開いたあと、下の「＋」を押して /new に戻した）は、
   // 都道府県を URL に合わせ直す。/new なら未選択に戻る
@@ -37,6 +41,7 @@ export default function NewRecordPage() {
   }, [prefectureParam])
 
   const shotDates = useShotDates(photos) // 写真の id → 撮影日（取れなければ null）
+  usePhotoPrep(photos) // 選んだ写真の縮小を、保存を押す前から裏で進める（外した写真は取り消す）
   const photoDates = photos.map((p) => shotDates.get(p.id)).filter(Boolean)
 
   const tripBlocked = tripsReady && tripDraftIsEmpty(trip) // 新しい旅の名前が空のまま
@@ -57,6 +62,8 @@ export default function NewRecordPage() {
   }
 
   function removePhoto(id) {
+    const target = photos.find((p) => p.id === id)
+    if (target) URL.revokeObjectURL(target.src) // 表示用の一時的なURLも手放す
     setPhotos((prev) => prev.filter((p) => p.id !== id))
   }
 
@@ -65,6 +72,7 @@ export default function NewRecordPage() {
     if (!canSave) return
     setSaving(true)
     setSaveError('')
+    setProgress(photos.length > 0 ? { done: 0, total: photos.length } : null) // 「写真を保存しています 0 / n」から始める
 
     // 旅：機能が使えないときは undefined（trip_id に一切触れない）。新しい旅は、ここで作る（同じ名前があればそれを使う）
     let tripId
@@ -93,6 +101,7 @@ export default function NewRecordPage() {
         memo: memo.trim(),
         tags,
         tripId,
+        onProgress: (done, total) => setProgress({ done, total }),
       })
       navigate(`/record/${created.id}`, { replace: true })
     } catch (error) {
@@ -158,7 +167,7 @@ export default function NewRecordPage() {
           <button type="submit" className="btn-primary" disabled={!canSave}>
             {saving ? '保存中…' : '記録する'}
           </button>
-          {saving && photos.length > 0 && <p className="field__hint" role="status">写真を保存しています</p>}
+          {saving && progress && <SaveProgress done={progress.done} total={progress.total} />}
           {!canSave && !saving && (
             <p className="field__hint">
               {placeName.trim() !== '' && prefectureId !== '' && tripBlocked

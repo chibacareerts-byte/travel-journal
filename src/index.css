@@ -1,10 +1,11 @@
 /* ==========================================================
-   旅の記録 — スタイル
+   旅と日々の記憶 — スタイル
    テーマ：旅行写真集 × 美術館図録（淡いグレー × 藍色）
    目次
      1. 色・文字の設定   2. 基本   3. 全体レイアウト / 下部ナビ
      4. 見出し・共通パーツ  5. 写真   6. 一覧   7. ホーム（地図）
      8. 記録詳細   9. フォーム   10. 年別   11. 拡大表示
+     （12〜15・MY BEST は下に続く）  16. 触れたときの反応・写真の読み込み・読みやすさ
    ========================================================== */
 
 /* ---------- 1. 色・文字の設定 ---------- */
@@ -718,9 +719,11 @@ img {
   display: block;
   width: 100%;
 }
-/* 代表写真の高さは画面の約60%（横幅はフルのまま、はみ出る分は cover で切り取る） */
+/* 代表写真の高さは画面の約60%（横幅はフルのまま、はみ出る分は cover で切り取る）。
+   svh：スクロールでアドレスバーが出入りしても高さが変わらない（写真がガタつかない）。古いブラウザは vh */
 .detail__hero-photo {
-  height: 60dvh;
+  height: 60vh;
+  height: 60svh;
 }
 .detail__back {
   position: absolute;
@@ -917,7 +920,7 @@ img {
   left: 0;
   bottom: 0;
   padding: 2px 8px;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   background: var(--indigo);
   color: var(--white);
@@ -985,7 +988,7 @@ img {
   top: 100%;
   margin-top: 4px;
   overflow: hidden;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.2;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
@@ -1512,7 +1515,7 @@ img {
   width: 96px;
 }
 .pop__plate-label {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--indigo-sub);
@@ -1981,4 +1984,100 @@ img {
 }
 .best-form--inline {
   margin-top: 12px;
+}
+
+/* ---------- 16. 触れたときの反応・写真の読み込み・読みやすさ ----------
+   足すのは「淡さ」と「時間」だけ。新しい色・影・グラデーションは使わない。
+   MY BEST（.page--best の中・編集画面の .best-field の中）は今回は変えないので、:not() で外している */
+:root {
+  --press-control: 0.6; /* 文字・線のボタン、リンク、ナビ：押している間 */
+  --press-fill: 0.8; /* 塗りのボタン：押している間 */
+  --press-surface: 0.84; /* 写真・カード：押している間 */
+  --hover-control: 0.72; /* マウスを乗せたとき */
+  /* 小さな藍色の文字用。--indigo-sub と同じ色相で少しだけ深い（背景 #f4f6f8 の上で 4.75:1、白の上で 5.15:1） */
+  --indigo-label: #4370a2;
+}
+
+/* 押した瞬間にすっと淡くなり、離すと 0.2 秒で戻る */
+:is(
+    .btn-line, .btn-primary, .text-btn, .row-link, .backbar__btn, .head-link, .filter-toggle,
+    .sort-toggle__btn, .tag--button, .tag__x, .shot-date, .trip-field__new, .photo-picker__add,
+    .photo-picker__remove, .photo-picker__select, .dropdown__button, .dropdown__option, .index-row,
+    .facts dd a, .pop__cta, .pop__close, .detail__back, .lightbox__close, .lightbox__arrows button,
+    .bottom-nav__item, .bottom-nav__item--center .bottom-nav__icon,
+    .rcard, .entry, .year-entry, .gallery__item, .detail__hero-btn
+  ):not(.page--best *, .best-field *) {
+  transition: opacity 0.2s ease-out;
+}
+:is(
+    .btn-line, .text-btn, .row-link, .backbar__btn, .head-link, .filter-toggle, .sort-toggle__btn,
+    .tag--button, .tag__x, .shot-date, .trip-field__new, .photo-picker__add, .photo-picker__remove,
+    .dropdown__button, .dropdown__option, .index-row, .facts dd a, .pop__cta, .pop__close,
+    .detail__back, .lightbox__close, .lightbox__arrows button, .bottom-nav__item:not(.bottom-nav__item--center)
+  ):not(.page--best *, .best-field *):not(:disabled):active {
+  opacity: var(--press-control);
+  transition-duration: 0s;
+}
+:is(.btn-primary, .confirm__delete):not(.page--best *, .best-field *):not(:disabled):active,
+.bottom-nav__item--center:active .bottom-nav__icon {
+  opacity: var(--press-fill);
+  transition-duration: 0s;
+}
+:is(.rcard, .entry, .year-entry, .gallery__item, .detail__hero-btn, .photo-picker__select):not(.page--best *, .best-field *):active {
+  opacity: var(--press-surface);
+  transition-duration: 0s;
+}
+
+/* マウスのある環境だけ：乗せたときも、同じ淡さで静かに応える（指で触る端末では出さない） */
+@media (hover: hover) and (pointer: fine) {
+  :is(
+      .btn-line, .text-btn, .row-link, .backbar__btn, .head-link, .filter-toggle, .sort-toggle__btn,
+      .tag--button, .tag__x, .shot-date, .trip-field__new, .photo-picker__add, .photo-picker__remove,
+      .dropdown__button, .index-row, .facts dd a, .pop__cta, .pop__close, .detail__back,
+      .lightbox__close, .lightbox__arrows button, .bottom-nav__item:not(.bottom-nav__item--center)
+    ):not(.page--best *, .best-field *):not(:disabled):hover {
+    opacity: var(--hover-control);
+  }
+  :is(.btn-primary, .confirm__delete):not(.page--best *, .best-field *):not(:disabled):hover,
+  .bottom-nav__item--center:hover .bottom-nav__icon {
+    opacity: 0.9;
+  }
+  /* 写真のカード：写真はそのまま、場所名に細い下線（図録の索引のように） */
+  :is(.rcard, .entry):not(.page--best *, .best-field *):hover :is(.rcard__title, .entry__title) {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.22em;
+  }
+  :is(.year-entry, .gallery__item):not(.page--best *, .best-field *):hover {
+    opacity: 0.9;
+  }
+}
+
+/* 写真：読み込みが終わってから、短く静かに現れる（Photo の fade を指定した写真だけ。動きを減らす設定では、すぐに出る） */
+.photo img.photo__img--fade {
+  opacity: 0;
+  transition: opacity 0.45s ease-out;
+}
+.photo img.photo__img--fade.is-loaded {
+  opacity: 1;
+}
+
+/* 小さな藍色の文字：背景の上でも読みやすい濃さに（色相はそのまま） */
+:is(
+    .eyebrow, .trip-head__label, .index-group__title, .gallery__label, .rcard__tags,
+    .month__num, .map-label__code, .pop__en, .pop__plate-label
+  ):not(.page--best *, .best-field *) {
+  color: var(--indigo-label);
+}
+/* 入力欄の見本の文字（プレースホルダー）：薄すぎたので、入力した文字とは区別できる範囲で濃く */
+.input:not(.page--best *, .best-field *)::placeholder,
+.dropdown__placeholder {
+  color: rgba(51, 65, 85, 0.72);
+}
+
+/* 保存中の写真の進み具合（「写真を保存しています 3 / 10」）：数字の幅がそろい、表示が揺れない */
+.save-progress__count {
+  margin-left: 0.6em;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
 }

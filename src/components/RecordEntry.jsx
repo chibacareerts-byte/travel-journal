@@ -1,6 +1,7 @@
 // 記録一覧の1件分。写真を大きく、その下に小さく文字を添えます（カードの枠はなし）。
 // compact=true のときは、2列並びの小さい表示（検索結果用）。
 // variant="year" のときは、年別ページ用の表示：日付は年を省き、タグは出しません。
+// priority=true は、画面を開いてすぐ見える1件目だけ（その写真を先に読み込む）。写真は読み込めたら静かにフェードイン。
 // 写真が0枚の記録は、どの画面でも、写真の枠（プレースホルダー）を出さず、文字だけで表示します
 //   （場所名・都道府県と日付・タグ）。写真が1枚以上ある記録の表示は変わりません。
 
@@ -10,7 +11,7 @@ import TagList from './TagList'
 import { getPrefecture } from '../data/prefectures'
 import { formatDate, formatMonthDay } from '../lib/recordUtils'
 
-export default function RecordEntry({ record, showPrefecture = true, compact = false, variant }) {
+export default function RecordEntry({ record, showPrefecture = true, compact = false, variant, priority = false }) {
   const pref = getPrefecture(record.prefectureId)
   const isYear = variant === 'year'
   const date = isYear ? formatMonthDay(record.visitedOn) : formatDate(record.visitedOn)
@@ -33,7 +34,7 @@ export default function RecordEntry({ record, showPrefecture = true, compact = f
 
   return (
     <Link to={`/record/${record.id}`} className={compact ? 'entry entry--compact' : 'entry'}>
-      <Photo photo={record.photos[0]} ratio={compact ? '1 / 1' : '3 / 2'} />
+      <Photo photo={record.photos[0]} ratio={compact ? '1 / 1' : '3 / 2'} fade priority={priority} />
       <div className="entry__caption">
         <h3 className="entry__title">{record.placeName}</h3>
         <p className="entry__meta">{meta}</p>

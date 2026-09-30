@@ -14,6 +14,7 @@
 
 import { supabase } from './supabase'
 import { createPerf } from './perf'
+import { resizedJpeg } from './photoPrep'
 import { PREFECTURES } from '../data/prefectures'
 import { DEFAULT_TAGS } from '../data/tags'
 
@@ -70,12 +71,11 @@ const tripColumn = (input) => (hasTrip(input) ? { trip_id: input.tripId === null
 
 const BUCKET = 'travel-photos'
 const MAX_PHOTOS = 10
-const MAX_EDGE = 2000 // 長辺の最大px。これより小さい写真は拡大しない
-const JPEG_QUALITY = 0.85
 const SIGNED_URL_SECONDS = 3600
 // 保存の速さの調整（スマートフォン回線・メモリを考えた値）
 const UPLOAD_CONCURRENCY = 3 // 同時に Storage へ送る枚数。10枚でも、同時には最大3枚まで
-const RESIZE_CONCURRENCY = 1 // 同時に縮小する枚数。大きな写真の展開はメモリを使うので、1枚ずつ（前の写真を送っている間に、次を縮小する）
+// 写真の縮小（長辺 2000px 以下・JPEG・品質 0.85、同時に1枚ずつ）は photoPrep.js。
+// 写真を選んだ時点から裏で縮小を進めているので、保存のときは済んだ画像を受け取るだけ（途中なら終わるまで待つ）
 
 // 保存パスの一覧から、表示用の署名付き URL を「まとめて」作る → { path: url }
 // 作れなかった写真は入れない（呼び出し側で src: null になり、プレースホルダーが出る）
@@ -107,68 +107,6 @@ export async function refreshPhotoUrls(paths) {
 
 const pathsOf = (rows) => rows.flatMap((row) => toArray(row.photos).map((item) => item && item.path).filter(Boolean))
 
-// 写真を「長辺 2000px 以下・JPEG・品質 0.85」に変換する（縦横比は維持）。
-// imageOrientation: 'from-image' で、スマホ写真の向き情報（EXIF）を反映してから描く。
-async function resizeToJpeg(file) {
-  let bitmap
-  try {
-    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
-  } catch {
-    // 古いブラウザ向け：img 要素で読み込む（向きはブラウザが反映する）
-    const url = URL.createObjectURL(file)
-    try {
-      const img = new Image()
-      img.src = url
-      await img.decode()
-      bitmap = await createImageBitmap(img)
-    } finally {
-      URL.revokeObjectURL(url)
-    }
-  }
-  try {
-    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height))
-    const width = Math.max(1, Math.round(bitmap.width * scale))
-    const height = Math.max(1, Math.round(bitmap.height * scale))
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const ctx = canvas.getContext('2d')
-    ctx.fillStyle = '#ffffff' // 透明な PNG などが黒くならないように
-    ctx.fillRect(0, 0, width, height)
-    ctx.drawImage(bitmap, 0, 0, width, height)
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY))
-    if (!blob) throw new Error('画像を変換できませんでした')
-    canvas.width = 0 // 使い終わった描画領域のメモリをすぐ手放す（スマホで何枚も続けて縮小するとき用）
-    canvas.height = 0
-    return blob
-  } finally {
-    bitmap.close()
-  }
-}
-
-// 同時に動かす数を max に制限する順番待ちの仕組み（先に頼んだものから順に動く）
-function createLimiter(max) {
-  let active = 0
-  const queue = []
-  function next() {
-    if (active >= max || queue.length === 0) return
-    active += 1
-    const { fn, resolve, reject } = queue.shift()
-    Promise.resolve()
-      .then(fn) // fn が同期的に値を返しても、例外を投げても、順番待ちが止まらないように
-      .then(resolve, reject)
-      .finally(() => {
-        active -= 1
-        next()
-      })
-  }
-  return (fn) =>
-    new Promise((resolve, reject) => {
-      queue.push({ fn, resolve, reject })
-      next()
-    })
-}
-
 // 開発中だけ、コンソールで window.__saveUploadConcurrency = 1 と入れて「1枚ずつ送る」動きと比べられる
 function uploadConcurrency() {
   if (import.meta.env.DEV && typeof window !== 'undefined') {
@@ -179,16 +117,18 @@ function uploadConcurrency() {
 }
 
 // 写真を「縮小 → アップロード」する。写真ごとの流れを、最大 UPLOAD_CONCURRENCY 枚ぶん同時に進める：
-//   ・縮小は1枚ずつ（メモリのため）。縮小が終わった写真から順にアップロードを始めるので、前の写真の送信中に次を縮小できる
+//   ・縮小は1枚ずつ（メモリのため）。選んだ時点から裏で進めているので、済んでいる写真はすぐにアップロードを始める
+//     （まだ縮小中・順番待ちの写真は、その分だけ待つ。同じ写真を2回縮小することはない → photoPrep.js）
+//   ・onProgress(送れた枚数, 全体の枚数) … 1枚アップロードが終わるたびに呼ぶ（画面の「3 / 10」の表示用）
 //   ・ready … 記録の id が決まる／編集の前提の確認が済む、まで待ってから送る（確認に失敗したら、1枚も送らない）
 //   ・どれか1枚でも失敗したら、新しい写真の処理は始めない。すでに送信中のものは終わるのを待つ
 //   ・attemptedPaths には「送信を始めた写真の path」を入れる（失敗時にまとめて削除するため。送信の完了は待ってから返す）
 // 成功：入力と同じ順番の path の配列。失敗：error.pipeline = { stage: 'convert' | 'ready' | 'upload', index, cause, uploaded } を付けて投げる
-async function convertAndUpload({ files, ready, pathFor, attemptedPaths, perf }) {
+async function convertAndUpload({ files, ready, pathFor, attemptedPaths, perf, onProgress }) {
   const total = files.length
   const paths = new Array(total).fill(null)
-  const limitResize = createLimiter(RESIZE_CONCURRENCY)
   let next = 0
+  let done = 0
   let failure = null
 
   async function worker() {
@@ -197,7 +137,7 @@ async function convertAndUpload({ files, ready, pathFor, attemptedPaths, perf })
       if (index >= total) return
       let stage = 'convert'
       try {
-        const blob = await limitResize(async () => (failure ? null : await perf.time('resize', () => resizeToJpeg(files[index]))))
+        const blob = await perf.time('resize', () => resizedJpeg(files[index])) // 縮小済みの画像（途中なら、終わるまで待つ）
         if (failure) return
         stage = 'ready'
         const readyValue = await ready
@@ -210,6 +150,8 @@ async function convertAndUpload({ files, ready, pathFor, attemptedPaths, perf })
         )
         if (error) throw error
         paths[index] = path
+        done += 1
+        reportProgress(onProgress, done, total)
       } catch (cause) {
         if (!failure) failure = { stage, index, cause }
         return
@@ -225,6 +167,16 @@ async function convertAndUpload({ files, ready, pathFor, attemptedPaths, perf })
     throw error
   }
   return paths
+}
+
+// 進み具合を画面に伝える。画面側の都合で失敗しても、保存は止めない
+function reportProgress(onProgress, done, total) {
+  if (typeof onProgress !== 'function') return
+  try {
+    onProgress(done, total)
+  } catch (error) {
+    console.warn('保存の進み具合を表示できませんでした', error)
+  }
 }
 
 // 画面に見せる日本語のメッセージ付きのエラー
@@ -251,11 +203,12 @@ export async function fetchTags() {
   return [...new Set([...DEFAULT_TAGS, ...used])]
 }
 
-// input: { placeName, prefectureId, visitedOn, photos, memo, tags }
+// input: { placeName, prefectureId, visitedOn, photos, memo, tags, onProgress? }
 //   photos: [{ id, src(プレビュー用の blob URL), file(選んだ元の画像) }]
+//   onProgress(送れた枚数, 全体の枚数): 写真を1枚アップロードするたびに呼ぶ（省略可）
 //
 // 保存の流れ（写真なしなら 2 だけ。通信は INSERT の1回だけ）：
-//   1. 写真の縮小を始める（同時に 2 の INSERT も送る。待ち時間が重なる）
+//   1. 写真の縮小（選んだ時点から裏で進めている。済んでいなければ待つ。同時に 2 の INSERT も送る）
 //   2. records に記録を作る（photos は空）→ id が決まる
 //   3. 写真を <user_id>/<record_id>/<UUID>.jpg にアップロード（最大3枚を同時に。縮小が終わった写真から順に）
 //   4. records.photos と cover_photo（1枚目の path）を更新（同時に、表示用の署名付き URL も作る）
@@ -318,6 +271,7 @@ export async function createRecord(input) {
       ready,
       attemptedPaths,
       perf,
+      onProgress: input.onProgress,
       pathFor: (i, created) => `${userId}/${created.id}/${photoIds[i]}.jpg`,
     })
     const photos = paths.map((path, i) => ({ id: photoIds[i], path }))
@@ -380,14 +334,14 @@ export async function createRecord(input) {
 }
 
 // 記録の編集。
-//   input: { placeName, prefectureId, visitedOn, memo, tags, photos? }
+//   input: { placeName, prefectureId, visitedOn, memo, tags, photos?, onProgress? }
 //   photos を渡さなければ、写真には一切触れない（文字情報の5列だけ更新する）。
 //   photos を渡すと、写真の追加・削除・並べ替えも行う。渡し方：
 //     [{ kind: 'existing', id, path } | { kind: 'new', file }, ...]  ← 保存後の並び順のまま
 //   先頭の写真が代表写真：DB でも、photos[0].path と cover_photo が必ず同じになる（0枚なら cover_photo は null）。
 //
 // 写真を変えるときの順序（既存の写真を、DB より先に消さない）：
-//   1. 新しい写真をすべて縮小（失敗しても、まだ何も変えていない）
+//   1. 新しい写真をすべて縮小（選んだ時点から裏で進めている。失敗しても、まだ何も変えていない）
 //   2. 新しい写真を Storage にアップロード
 //   3. records を1回の UPDATE で更新（文字情報 ＋ photos ＋ cover_photo）
 //   4. UPDATE が成功したあとで、外された古い写真を Storage から削除
@@ -493,6 +447,7 @@ export async function updateRecord(id, input) {
         ready,
         attemptedPaths,
         perf,
+        onProgress: input.onProgress,
         pathFor: (i) => `${userId}/${numericId}/${newPhotoIds[i]}.jpg`,
       })
     } catch (cause) {

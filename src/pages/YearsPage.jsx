@@ -22,10 +22,10 @@ export default function YearsPage() {
           <EmptyRecords />
         ) : (
           <div className="entry-list year-list">
-            {years.map(({ year, records: list }) => (
+            {years.map(({ year, records: list }, i) => (
               <Link key={year} to={`/years/${year}`} className="year-entry">
                 <div className="year-entry__media">
-                  <Photo photo={getRepresentativePhoto(list)} ratio="16 / 10" />
+                  <Photo photo={getRepresentativePhoto(list)} ratio="16 / 10" fade priority={i === 0} />
                   <div className="year-entry__label">
                     <span className="year-entry__year">{year}</span>
                     <span className="year-entry__count">{list.length}件の記録</span>

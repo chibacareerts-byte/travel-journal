@@ -24,6 +24,15 @@ export default function RecordsPage() {
     [records, trips, tripsReady, order],
   )
 
+  // 一覧でいちばん上にある、写真のある記録（最初に見える写真を、先に読み込む）
+  const firstId = useMemo(() => {
+    for (const s of sections) {
+      const hit = s.records.find((r) => r.photos.length > 0)
+      if (hit) return hit.id
+    }
+    return null
+  }, [sections])
+
   return (
     <div className="page page--records">
       <header className="page-head">
@@ -56,14 +65,14 @@ export default function RecordsPage() {
                   </header>
                   <div className="card-list">
                     {s.records.map((r) => (
-                      <RecordCard key={r.id} record={r} />
+                      <RecordCard key={r.id} record={r} priority={r.id === firstId} />
                     ))}
                   </div>
                 </section>
               ) : (
                 <div key={s.key} className="card-list">
                   {s.records.map((r) => (
-                    <RecordCard key={r.id} record={r} />
+                    <RecordCard key={r.id} record={r} priority={r.id === firstId} />
                   ))}
                 </div>
               ),

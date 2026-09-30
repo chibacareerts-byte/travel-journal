@@ -28,7 +28,7 @@ export default function LoginPage() {
     <div className="login">
       <header className="login__head">
         <p className="eyebrow">Travel Journal</p>
-        <h1 className="page-title">旅の記録</h1>
+        <h1 className="page-title">旅と日々の記憶</h1>
       </header>
 
       <form className="form" onSubmit={handleSubmit}>

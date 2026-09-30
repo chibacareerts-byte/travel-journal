@@ -21,6 +21,7 @@ export default function PrefecturePage() {
   }
 
   const list = records.filter((r) => r.prefectureId === pref.id)
+  const firstPhotoId = (list.find((r) => r.photos.length > 0) || {}).id // 最初に見える写真を、先に読み込む
 
   return (
     <div className="page">
@@ -42,7 +43,7 @@ export default function PrefecturePage() {
         ) : (
           <div className="entry-list">
             {list.map((r) => (
-              <RecordEntry key={r.id} record={r} showPrefecture={false} />
+              <RecordEntry key={r.id} record={r} showPrefecture={false} priority={r.id === firstPhotoId} />
             ))}
           </div>
         )}

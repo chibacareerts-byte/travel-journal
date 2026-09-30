@@ -99,7 +99,7 @@ export default function RecordDetailPage() {
       {hasPhotos && (
       <div className="detail__hero">
         <button type="button" className="detail__hero-btn" onClick={() => setViewerIndex(0)} aria-label="写真を拡大">
-          <Photo photo={photos[0]} ratio="4 / 5" className="detail__hero-photo" />
+          <Photo photo={photos[0]} ratio="4 / 5" className="detail__hero-photo" fade priority />
         </button>
         <button type="button" className="detail__back" onClick={goBack} aria-label="戻る">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -155,7 +155,7 @@ export default function RecordDetailPage() {
                 onClick={() => setViewerIndex(i + 1)}
                 aria-label={`${i + 2}枚目の写真を拡大`}
               >
-                <Photo photo={p} ratio="1 / 1" />
+                <Photo photo={p} ratio="1 / 1" fade />
               </button>
             ))}
           </div>

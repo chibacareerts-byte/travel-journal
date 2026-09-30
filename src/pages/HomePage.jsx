@@ -32,7 +32,7 @@ export default function HomePage() {
     <div className="page">
       <header className="page-head">
         <p className="eyebrow">Travel Journal</p>
-        <h1 className="page-title">旅の記録</h1>
+        <h1 className="page-title">旅と日々の記憶</h1>
       </header>
 
       <section className="home-map" style={mapStyle} aria-label="訪問した都道府県">

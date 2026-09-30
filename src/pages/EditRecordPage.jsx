@@ -2,6 +2,7 @@
 // 追加した写真の撮影日（EXIF）が取れたら表示し、その日を訪問日に設定できます（自動では設定しません）。
 // 旅は、trips.sql を実行して旅の機能が使えるときだけ表示します。
 // 写真は「保存する」を押したときに、はじめて Storage へ保存・削除されます（キャンセルしたら何も変わりません）。
+// 追加した写真の縮小だけは、選んだ時点から裏で始めておきます（usePhotoPrep。Storage には何も送りません）。
 import { useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import BackBar from '../components/BackBar'
@@ -9,10 +10,12 @@ import BestListsField, { useRecordBest } from '../components/BestListsField'
 import PhotoEditor from '../components/PhotoEditor'
 import RecordFields from '../components/RecordFields'
 import RecordsGate from '../components/RecordsGate'
+import SaveProgress from '../components/SaveProgress'
 import ShotDatePicker from '../components/ShotDatePicker'
 import TripField from '../components/TripField'
 import { useRecords } from '../lib/RecordsContext'
 import { tripDraftIsEmpty } from '../lib/tripUtils'
+import { usePhotoPrep } from '../lib/usePhotoPrep'
 import { useShotDates } from '../lib/useShotDates'
 
 export default function EditRecordPage() {
@@ -53,11 +56,13 @@ function EditForm({ record }) {
   )
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [progress, setProgress] = useState(null) // 保存中の、追加した写真の進み具合 { done, total }（追加なしは null）
   const [recordSaved, setRecordSaved] = useState(false) // 記録の保存が済んだあと、MY BESTだけ失敗したとき true（再試行では記録を保存し直さない）
   const best = useRecordBest(record.id)
   const [trip, setTrip] = useState({ tripId: record.tripId ?? null, newTitle: null }) // 旅（TripField の値）
   const shotDates = useShotDates(photoItems) // 今回追加した写真の key → 撮影日
   const photoDates = photoItems.map((item) => shotDates.get(item.key)).filter(Boolean)
+  usePhotoPrep(photoItems) // 追加した写真の縮小を、保存を押す前から裏で進める（外した写真は取り消す）
 
   const tripBlocked = tripsReady && tripDraftIsEmpty(trip) // 新しい旅の名前が空のまま
   const canSave = values.placeName.trim() !== '' && values.prefectureId !== '' && !tripBlocked && !saving
@@ -67,6 +72,7 @@ function EditForm({ record }) {
     if (!canSave) return // 保存中の二重送信もここで止まる
     setSaving(true)
     setSaveError('')
+    setProgress(null) // 写真を追加しているときだけ、下で「0 / n」から表示する（MY BESTだけの再保存では出さない）
     try {
       if (!recordSaved) {
         // 旅：機能が使えないときは undefined（trip_id に一切触れない）。新しい旅は、ここで作る（同じ名前があればそれを使う）
@@ -84,6 +90,8 @@ function EditForm({ record }) {
           photoItems.some((item) => item.kind === 'new') ||
           photoItems.length !== record.photos.length ||
           photoItems.some((item, i) => item.id !== record.photos[i].id)
+        const newCount = photoItems.filter((item) => item.kind === 'new').length
+        setProgress(newCount > 0 ? { done: 0, total: newCount } : null)
         await updateRecord(record.id, {
           placeName: values.placeName.trim(),
           prefectureId: Number(values.prefectureId),
@@ -96,6 +104,7 @@ function EditForm({ record }) {
                 item.kind === 'new' ? { kind: 'new', file: item.file } : { kind: 'existing', id: item.id, path: item.path },
               )
             : undefined,
+          onProgress: (done, total) => setProgress({ done, total }),
         })
         setRecordSaved(true)
       }
@@ -165,6 +174,7 @@ function EditForm({ record }) {
           <button type="submit" className="btn-primary" disabled={!canSave}>
             {saving ? '保存中…' : '保存する'}
           </button>
+          {saving && progress && <SaveProgress done={progress.done} total={progress.total} />}
           {!canSave && !saving && (
             <p className="field__hint">
               {values.placeName.trim() !== '' && values.prefectureId !== '' && tripBlocked
