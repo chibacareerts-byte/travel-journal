@@ -50,6 +50,18 @@ export async function fetchLists() {
   }))
 }
 
+// 自分のすべてのリストの順位を、まとめて1回で取得する（MY BEST の目次で、各リストの表紙写真と場所名を出すため。読むだけ）
+// 戻り値：[{ listId, recordId, position }]（リストごとに順位の順）。RLS により、自分のリストの順位だけが返る
+export async function fetchAllRankings() {
+  const { data, error } = await supabase
+    .from('record_rankings')
+    .select('list_id, record_id, position')
+    .order('list_id', { ascending: true })
+    .order('position', { ascending: true })
+  if (error) throw error
+  return data.map((row) => ({ listId: String(row.list_id), recordId: String(row.record_id), position: row.position }))
+}
+
 // 1つのリスト。見つからない（他人のリスト・削除済み）ときは null
 export async function fetchList(listId) {
   const { data, error } = await supabase.from('ranking_lists').select('id, title').eq('id', Number(listId)).maybeSingle()

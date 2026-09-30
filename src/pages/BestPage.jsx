@@ -1,14 +1,25 @@
-// MY BEST の一覧（/best）：自分で作ったベストリストの一覧。ここからリストを新しく作り、各リスト（/best/:listId）へ進む。
+// MY BEST の一覧（/best）：自分で作ったベストリストを、写真集の目次のように並べる。
+//   01  禅寺 BEST          ［表紙写真］
+//       BEST 3 / 5
+//       永平寺、大徳寺、萬福寺
+// ここからリストを新しく作り、各リスト（/best/:listId）へ進む。いちばん下に「旅の記録」への入口。
 // 同じ旅行記録を、複数のリストに入れることができます。
+// 表紙写真と場所名は、各リストの1位から順に探す（順位はまとめて1回で取得。取得できなくても一覧はそのまま出す）。
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BackBar from '../components/BackBar'
-import { BEST_MAX, TITLE_MAX, createList, fetchLists } from '../lib/rankingApi'
+import Photo from '../components/Photo'
+import { useRecords } from '../lib/RecordsContext'
+import { BEST_MAX, TITLE_MAX, createList, fetchAllRankings, fetchLists } from '../lib/rankingApi'
+
+const pad2 = (n) => String(n).padStart(2, '0')
 
 export default function BestPage() {
   const navigate = useNavigate()
+  const { records } = useRecords()
   const [lists, setLists] = useState(null) // null は読み込み中
+  const [rankings, setRankings] = useState([]) // 表紙用（取得できなければ空のまま）
   const [loadError, setLoadError] = useState(false)
   const [creating, setCreating] = useState(false)
   const [title, setTitle] = useState('')
@@ -17,6 +28,9 @@ export default function BestPage() {
 
   const load = useCallback(() => {
     setLoadError(false)
+    fetchAllRankings()
+      .then(setRankings)
+      .catch((err) => console.warn('MY BESTの表紙を取得できませんでした（一覧はそのまま表示します）', err))
     return fetchLists()
       .then(setLists)
       .catch((err) => {
@@ -28,6 +42,21 @@ export default function BestPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  // リスト → { cover（1位から探した最初の写真）, names（上位の場所名） }
+  const covers = useMemo(() => {
+    const byId = new Map(records.map((r) => [r.id, r]))
+    const map = new Map()
+    for (const rk of rankings) {
+      const record = byId.get(rk.recordId)
+      if (!record) continue
+      const cur = map.get(rk.listId) || { cover: null, names: [] }
+      if (!cur.cover && record.photos.length > 0) cur.cover = record.photos[0]
+      cur.names.push(record.placeName)
+      map.set(rk.listId, cur)
+    }
+    return map
+  }, [records, rankings])
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -67,19 +96,28 @@ export default function BestPage() {
           {lists.length === 0 ? (
             <p className="best__empty">まだMY BESTがありません。</p>
           ) : (
-            <ul className="best-lists">
-              {lists.map((l) => (
-                <li key={l.id}>
-                  <Link to={`/best/${l.id}`} className="best-lists__row">
-                    <span className="best-lists__text">
-                      <span className="best-lists__title">{l.title}</span>
-                      <span className="best-lists__count">BEST {l.count} / {BEST_MAX}</span>
-                    </span>
-                    <span className="best-lists__arrow" aria-hidden="true">→</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <ol className="best-lists">
+              {lists.map((l, i) => {
+                const info = covers.get(l.id)
+                return (
+                  <li key={l.id}>
+                    <Link to={`/best/${l.id}`} className="best-lists__row">
+                      <span className="best-lists__no">{pad2(i + 1)}</span>
+                      <span className="best-lists__text">
+                        <span className="best-lists__title">{l.title}</span>
+                        <span className="best-lists__count">BEST {l.count} / {BEST_MAX}</span>
+                        {info && info.names.length > 0 && (
+                          <span className="best-lists__names">{info.names.slice(0, 3).join('、')}</span>
+                        )}
+                      </span>
+                      <span className="best-lists__cover" aria-hidden="true">
+                        {info && info.cover && <Photo photo={info.cover} ratio="4 / 5" fade />}
+                      </span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ol>
           )}
 
           <div className="best__add">
@@ -117,13 +155,23 @@ export default function BestPage() {
                 </div>
               </form>
             ) : (
-              <button type="button" className="btn-line" onClick={() => setCreating(true)}>
+              <button type="button" className="best-manage" onClick={() => setCreating(true)}>
                 ＋ 新しいMY BESTを作る
               </button>
             )}
           </div>
         </>
       )}
+
+      {/* 旅の記録への入口（旅ごとに振り返る） */}
+      <Link to="/trips" className="journeys-link">
+        <span className="journeys-link__label">Journeys</span>
+        <span className="journeys-link__row">
+          <span className="journeys-link__title">旅の記録</span>
+          <span aria-hidden="true">→</span>
+        </span>
+        <span className="journeys-link__sub">旅ごとに記憶を振り返る</span>
+      </Link>
     </div>
   )
 }

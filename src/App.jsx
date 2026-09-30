@@ -15,6 +15,8 @@ import YearsPage from './pages/YearsPage'
 import YearPage from './pages/YearPage'
 import BestPage from './pages/BestPage'
 import BestListPage from './pages/BestListPage'
+import TripsPage from './pages/TripsPage'
+import TripDetailPage from './pages/TripDetailPage'
 
 // 画面を切り替えたとき、いつも一番上から表示する
 function ScrollToTop() {
@@ -43,6 +45,8 @@ export default function App() {
           <Route path="/years/:year" element={<YearPage />} />
           <Route path="/best" element={<BestPage />} />
           <Route path="/best/:listId" element={<BestListPage />} />
+          <Route path="/trips" element={<TripsPage />} />
+          <Route path="/trips/:tripId" element={<TripDetailPage />} />
           <Route path="*" element={<HomePage />} />
         </Routes>
       </main>

@@ -1,4 +1,8 @@
-// 3. 記録詳細。1枚目の写真を大きく、その下に情報、最後にギャラリー。
+// 3. 記録詳細：1ページの小さな写真集として。
+//   代表写真（Hero）→ 場所名 → 情報（都道府県・訪問日・旅・タグ）→ メモ → Photographs（2枚目以降）
+// 写真は切り取らずに本来の縦横比で出す。一度読み込んだ写真の比率は覚えておき（photoAspect）、最初から正しい高さの枠で出す
+// （読み込み後に画面がずれない）。比率を知らない代表写真だけは、今まで通り画面の約60%の高さの枠で出す。
+// 写真をタップすると拡大表示（Lightbox）。
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import Photo from '../components/Photo'
@@ -7,12 +11,33 @@ import Lightbox from '../components/Lightbox'
 import BackBar from '../components/BackBar'
 import RecordsGate from '../components/RecordsGate'
 import { getPrefecture } from '../data/prefectures'
+import { PREFECTURE_EN } from '../data/prefectureNames'
+import { aspectOf } from '../lib/photoAspect'
 import { useRecords } from '../lib/RecordsContext'
 import { formatDate } from '../lib/recordUtils'
 
+const pad2 = (n) => String(n).padStart(2, '0')
+
+// 代表写真：比率を覚えていれば、その比率の枠（極端に縦長・横長な写真だけ少し切る）。知らなければ今まで通りの枠
+function DetailHero({ photo, onOpen }) {
+  const [ratio] = useState(() => {
+    const r = aspectOf(photo)
+    return r ? Math.min(2, Math.max(0.62, r)) : null
+  })
+  return (
+    <button type="button" className="detail__hero-btn" onClick={onOpen} aria-label="写真を拡大">
+      {ratio ? (
+        <Photo photo={photo} ratio={String(ratio)} className="detail__hero-photo is-natural" fade priority />
+      ) : (
+        <Photo photo={photo} ratio="4 / 5" className="detail__hero-photo" fade priority />
+      )}
+    </button>
+  )
+}
+
 export default function RecordDetailPage() {
   const { id } = useParams()
-  const { records, removeRecord } = useRecords()
+  const { records, removeRecord, trips, tripsReady } = useRecords()
   const navigate = useNavigate()
   const [viewerIndex, setViewerIndex] = useState(null) // null = 拡大していない
 
@@ -90,6 +115,7 @@ export default function RecordDetailPage() {
   const hasPhotos = record.photos.length > 0
   const photos = hasPhotos ? record.photos : []
   const gallery = photos.slice(1)
+  const trip = tripsReady && record.tripId ? trips.find((t) => t.id === record.tripId) : null
 
   return (
     <article className={hasPhotos ? 'detail' : 'detail detail--plain'}>
@@ -98,9 +124,7 @@ export default function RecordDetailPage() {
       {/* 1枚目の写真：タップで拡大 */}
       {hasPhotos && (
       <div className="detail__hero">
-        <button type="button" className="detail__hero-btn" onClick={() => setViewerIndex(0)} aria-label="写真を拡大">
-          <Photo photo={photos[0]} ratio="4 / 5" className="detail__hero-photo" fade priority />
-        </button>
+        <DetailHero key={photos[0].id} photo={photos[0]} onOpen={() => setViewerIndex(0)} />
         <button type="button" className="detail__back" onClick={goBack} aria-label="戻る">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="m15 5-7 7 7 7" />
@@ -110,6 +134,7 @@ export default function RecordDetailPage() {
       )}
 
       <div className="detail__body">
+        <p className="detail__kicker">{PREFECTURE_EN[pref.id]}</p>
         <h1 className="detail__title">{record.placeName}</h1>
 
         <dl className="facts">
@@ -121,8 +146,16 @@ export default function RecordDetailPage() {
           </div>
           <div className="facts__row">
             <dt>訪問日</dt>
-            <dd>{formatDate(record.visitedOn)}</dd>
+            <dd className="facts__date">{formatDate(record.visitedOn)}</dd>
           </div>
+          {trip && (
+            <div className="facts__row">
+              <dt>旅</dt>
+              <dd>
+                <Link to={`/trips/${trip.id}`}>{trip.title}</Link>
+              </dd>
+            </div>
+          )}
           {record.tags.length > 0 && (
             <div className="facts__row">
               <dt>タグ</dt>
@@ -142,23 +175,29 @@ export default function RecordDetailPage() {
       </div>
 
       {gallery.length > 0 && (
-        <section className="gallery">
-          <h2 className="section-label gallery__label">
-            Gallery <span>{photos.length}枚</span>
+        <section className="plates" aria-labelledby="plates-title">
+          <h2 className="plates__head" id="plates-title">
+            <span className="plates__label">Photographs</span>
+            <span className="plates__count">{pad2(photos.length)}</span>
           </h2>
-          <div className="gallery__grid">
+          <ol className="plates__list">
             {gallery.map((p, i) => (
-              <button
-                key={p.id}
-                type="button"
-                className="gallery__item"
-                onClick={() => setViewerIndex(i + 1)}
-                aria-label={`${i + 2}枚目の写真を拡大`}
-              >
-                <Photo photo={p} ratio="1 / 1" fade />
-              </button>
+              <li key={p.id} className="plate">
+                <button
+                  type="button"
+                  className="plate__btn"
+                  onClick={() => setViewerIndex(i + 1)}
+                  aria-label={`${i + 2}枚目の写真を拡大`}
+                >
+                  <Photo photo={p} ratio="4 / 3" natural fade />
+                </button>
+                <p className="plate__no" aria-hidden="true">
+                  {pad2(i + 2)}
+                  <span className="plate__of"> / {pad2(photos.length)}</span>
+                </p>
+              </li>
             ))}
-          </div>
+          </ol>
         </section>
       )}
 
@@ -212,6 +251,7 @@ export default function RecordDetailPage() {
           index={viewerIndex}
           onChange={setViewerIndex}
           onClose={() => setViewerIndex(null)}
+          title={record.placeName}
         />
       )}
     </article>

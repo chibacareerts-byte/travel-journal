@@ -2,6 +2,11 @@
 // ランキングには「どのリストの、どの記録が何位か」だけを保存し、場所名・写真などは records のものをそのまま使います。
 // 順位の変更・追加・削除は、Supabase への保存が成功してから画面に反映します（画面だけ変わった状態を確定させない）。
 // タイトルの変更・リストの削除もここ。リストを削除しても、旅行記録（records）は削除されません。
+//
+// 表示は2つ：
+//   見る（最初の表示）… 順位・写真・場所名を大きく並べる。操作のボタンは出さない
+//   編集（［編集］を押す）… 並べ替え（↑↓）・外す・場所を追加・名前を変える・リストを削除（今までと同じ操作）
+// まだ1件も入っていないリストは、最初から「編集」で開く（すぐに場所を追加できるように）。
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -21,7 +26,7 @@ import {
   reorderRankings,
 } from '../lib/rankingApi'
 import { getPrefecture } from '../data/prefectures'
-import { formatDate } from '../lib/recordUtils'
+import { formatDate, formatDotDate } from '../lib/recordUtils'
 
 const pad2 = (n) => String(n).padStart(2, '0')
 
@@ -50,6 +55,7 @@ function BestListView({ listId }) {
   const [renaming, setRenaming] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
   const [confirming, setConfirming] = useState(false)
+  const [editing, setEditing] = useState(null) // null：まだ選んでいない（空のリストなら編集、そうでなければ見る）
 
   const load = useCallback(() => {
     setLoadError(false)
@@ -113,6 +119,7 @@ function BestListView({ listId }) {
   }
   if (items === null || list === null) return <p className="empty" role="status">読み込み中…</p>
 
+  const isEditing = editing ?? items.length === 0
   const byId = new Map(records.map((r) => [r.id, r]))
   // 記録が見つからないランキング（表示できない行）は、画面に出さない。順位の保存では、全件を渡す
   const visible = items.filter((it) => byId.has(it.recordId))
@@ -195,11 +202,27 @@ function BestListView({ listId }) {
 
   return (
     <>
-      <header className="page-head">
+      <header className="page-head best-head">
         <p className="eyebrow">My Best</p>
         <h1 className="page-title">{list.title}</h1>
-        <p className="page-sub">BEST {items.length} / {BEST_MAX}</p>
-        {renaming ? (
+        <div className="best-head__bar">
+          <p className="page-sub">BEST {items.length} / {BEST_MAX}</p>
+          <button
+            type="button"
+            className="best-edit-toggle"
+            aria-pressed={isEditing}
+            disabled={busy}
+            onClick={() => {
+              setEditing(!isEditing)
+              setPicking(false)
+              setRenaming(false)
+              setNotice('')
+            }}
+          >
+            {isEditing ? '完了' : '編集'}
+          </button>
+        </div>
+        {!isEditing ? null : renaming ? (
           <form className="best-form" onSubmit={saveTitle}>
             <input
               className="input"
@@ -227,6 +250,30 @@ function BestListView({ listId }) {
 
       {visible.length === 0 ? (
         <p className="best__empty">まだ選んでいません。</p>
+      ) : !isEditing ? (
+        <ol className="best-plates">
+          {visible.map((it, i) => {
+            const record = byId.get(it.recordId)
+            const hasPhotos = record.photos.length > 0 // 0枚だけを「写真なし」とする（src が取れない写真は Photo を通す）
+            const pref = getPrefecture(record.prefectureId)
+            return (
+              <li key={it.recordId} className={hasPhotos ? 'best-plate' : 'best-plate best-plate--text'}>
+                <Link to={`/record/${record.id}`} className="best-plate__link">
+                  <p className="best-plate__rank">
+                    <span aria-hidden="true">{pad2(i + 1)}</span>
+                    <span className="sr-only">{i + 1}位</span>
+                  </p>
+                  {hasPhotos && <Photo photo={record.photos[0]} ratio="3 / 2" className="best-plate__photo" fade priority={i === 0} />}
+                  <h2 className="best-plate__title">{record.placeName}</h2>
+                  <p className="best-plate__meta">
+                    {pref.name}
+                    <span className="best-plate__date">{formatDotDate(record.visitedOn)}</span>
+                  </p>
+                </Link>
+              </li>
+            )
+          })}
+        </ol>
       ) : (
         <ol className="best-list">
           {visible.map((it, i) => {
@@ -281,7 +328,7 @@ function BestListView({ listId }) {
         </p>
       )}
 
-      {items.length >= BEST_MAX ? (
+      {!isEditing ? null : items.length >= BEST_MAX ? (
         <p className="best__done">
           BEST {BEST_MAX}が完成しました
           {items.length > BEST_MAX && <span>（{BEST_MAX}件を超えています。外して調整できます）</span>}
@@ -294,7 +341,7 @@ function BestListView({ listId }) {
         </div>
       )}
 
-      {picking && items.length < BEST_MAX && (
+      {isEditing && picking && items.length < BEST_MAX && (
         <section className="best-pick" aria-label="保存済みの記録から選ぶ">
           <p className="section-label">保存済みの記録から選ぶ</p>
           {addable.length === 0 ? (
@@ -316,11 +363,13 @@ function BestListView({ listId }) {
         </section>
       )}
 
-      <div className="best__delete">
-        <button type="button" className="best-manage best-manage--quiet" onClick={() => setConfirming(true)}>
-          このリストを削除
-        </button>
-      </div>
+      {isEditing && (
+        <div className="best__delete">
+          <button type="button" className="best-manage best-manage--quiet" onClick={() => setConfirming(true)}>
+            このリストを削除
+          </button>
+        </div>
+      )}
 
       {confirming && (
         <div className="confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">

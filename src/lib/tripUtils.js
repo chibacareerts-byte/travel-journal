@@ -104,3 +104,65 @@ export function buildRecordSections(records, trips, order) {
   }
   return out
 }
+
+// ---- 旅の記録（/trips）・旅の詳細（/trips/:tripId） ----
+
+// 'YYYY-MM-DD' どうしの日数の差（b − a）。タイムゾーンの影響を受けないよう、UTC の日付として数える
+export function daysBetween(a, b) {
+  const t = (iso) => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)))
+  return Math.round((t(b) - t(a)) / 86400000)
+}
+
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
+// '2026-09-18' → '金'
+export function weekdayOf(iso) {
+  const d = new Date(Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))))
+  return WEEKDAYS[d.getUTCDay()]
+}
+
+// 旅ごとのまとめ。records は RecordsContext の records（書き換えない）、trips は旅の一覧。
+// 戻り値：[{ trip, records（訪問日の古い順）, start, end, days, cover（代表写真）, places（場所名・重複なし）, photoCount }]
+//   ・代表写真は、旅の中で最初に訪れた「写真のある記録」の1枚目
+//   ・並びは、最近の旅から（旅の最後の訪問日の新しい順）。記録の無い旅は最後に、作った日の新しい順
+//   ・旅に入っていない記録（trip_id が null）には触れない
+export function buildTripSummaries(records, trips) {
+  const byTrip = new Map(trips.map((t) => [t.id, []]))
+  for (const r of records) {
+    if (r.tripId && byTrip.has(r.tripId)) byTrip.get(r.tripId).push(r)
+  }
+  const list = trips.map((trip) => {
+    const recs = sortOldestFirst(byTrip.get(trip.id))
+    const start = recs.length > 0 ? recs[0].visitedOn : null
+    const end = recs.length > 0 ? recs[recs.length - 1].visitedOn : null
+    const coverRecord = recs.find((r) => r.photos.length > 0) || null
+    return {
+      trip,
+      records: recs,
+      start,
+      end,
+      days: start ? daysBetween(start, end) + 1 : 0,
+      cover: coverRecord ? coverRecord.photos[0] : null,
+      places: [...new Set(recs.map((r) => r.placeName))],
+      photoCount: recs.reduce((n, r) => n + r.photos.length, 0),
+    }
+  })
+  const created = (s) => String(s.trip.createdAt || '')
+  return list.sort((a, b) => {
+    if (a.end && b.end) return b.end.localeCompare(a.end) || created(b).localeCompare(created(a))
+    if (a.end) return -1
+    if (b.end) return 1
+    return created(b).localeCompare(created(a))
+  })
+}
+
+// 旅の中の記録を、日ごとにまとめる（records は訪問日の古い順）。
+// 戻り値：[{ date, day（旅の1日目を 1 とした日数）, records }]。記録の無い日は作らない（DAY 01, DAY 03 のように飛ぶ）
+export function groupTripDays(records, start) {
+  const days = []
+  for (const r of records) {
+    const last = days[days.length - 1]
+    if (last && last.date === r.visitedOn) last.records.push(r)
+    else days.push({ date: r.visitedOn, day: daysBetween(start, r.visitedOn) + 1, records: [r] })
+  }
+  return days
+}

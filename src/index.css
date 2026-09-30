@@ -725,6 +725,12 @@ img {
   height: 60vh;
   height: 60svh;
 }
+/* 比率を覚えている代表写真：本来の縦横比の枠（高さは画面の78%まで。超える縦長の写真だけ、上下を少し切る） */
+.detail__hero-photo.is-natural {
+  height: auto;
+  max-height: 78vh;
+  max-height: 78svh;
+}
 .detail__back {
   position: absolute;
   top: calc(12px + env(safe-area-inset-top));
@@ -740,21 +746,35 @@ img {
 }
 
 .detail__body {
-  padding: 24px var(--gutter) 4px;
+  padding: 30px var(--gutter) 4px;
+}
+/* 場所名の上の小さな見出し（都道府県の英語名）：図録の作品キャプションのように */
+.detail__kicker {
+  margin-bottom: 8px;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--indigo-label);
+}
+.detail__kicker:empty {
+  display: none;
 }
 .detail__title {
   overflow-wrap: anywhere;
   font-family: var(--font-serif);
   font-weight: 500;
-  font-size: 28px;
-  line-height: 1.4;
+  font-size: 30px;
+  line-height: 1.38;
   letter-spacing: 0.06em;
   color: var(--indigo);
 }
 
 .facts {
-  margin-top: 18px;
+  margin-top: 24px;
   border-top: 1px solid var(--line);
+}
+.facts__date {
+  font-variant-numeric: tabular-nums;
 }
 .facts__row {
   display: grid;
@@ -786,35 +806,73 @@ img {
 }
 
 .memo {
-  margin-top: 24px;
+  margin-top: 32px;
 }
+/* メモ：図録の解説文のように、明朝で少しゆったり */
 .memo__text {
   overflow-wrap: anywhere;
-  margin-top: 10px;
-  line-height: 2;
-  letter-spacing: 0.04em;
+  margin-top: 12px;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 2.05;
+  letter-spacing: 0.05em;
   white-space: pre-wrap;
 }
 
-.gallery {
-  margin-top: 36px;
+/* Photographs：2枚目以降の写真を、切り取らずに1列で（図録の図版のように、番号を添える） */
+.plates {
+  margin-top: 56px;
   padding: 0 var(--gutter);
 }
-.gallery__label {
+.plates__head {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   padding-bottom: 10px;
+  margin-bottom: 28px;
   border-bottom: 1px solid var(--indigo-sub);
-  margin-bottom: 12px;
-  color: var(--indigo-sub);
+  font-weight: 400;
 }
-.gallery__grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
+.plates__label {
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--indigo-label);
 }
-.gallery__item {
+.plates__count {
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-size: 15px;
+  letter-spacing: 0.16em;
+  font-variant-numeric: lining-nums;
+  color: var(--indigo-label);
+}
+.plates__list {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.plate__btn {
   display: block;
+  width: 100%;
+}
+/* 極端に縦長の写真だけは、画面に収まる高さまで（それ以外は切り取らない） */
+.plate .photo {
+  max-height: 82vh;
+  max-height: 82svh;
+}
+.plate__no {
+  margin-top: 10px;
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-size: 14px;
+  letter-spacing: 0.16em;
+  font-variant-numeric: lining-nums;
+  color: var(--indigo-label);
+}
+.plate__of {
+  color: var(--text-soft);
 }
 
 /* ---------- 9. フォーム（検索・新規記録） ---------- */
@@ -1307,7 +1365,8 @@ img {
   padding-top: 12px;
 }
 
-/* ---------- 11. 拡大表示 ---------- */
+/* ---------- 11. 拡大表示 ----------
+   写真は切り取らずに画面へ収める。前後の写真は横に並べておき、指の動きに合わせて帯（track）ごと動かす */
 .lightbox {
   position: fixed;
   inset: 0;
@@ -1316,55 +1375,97 @@ img {
   flex-direction: column;
   background: #0e1b2b;
   color: var(--white);
+  overscroll-behavior: contain;
+  touch-action: none; /* 後ろの画面がスクロールしないように（写真の上だけ、下でピンチ拡大を許す） */
+  animation: lb-in 0.18s ease-out both;
+}
+.lightbox.is-closing {
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+@keyframes lb-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .lightbox__top {
+  flex: none;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: calc(8px + env(safe-area-inset-top)) 8px 0 20px;
+  min-height: 56px;
+  padding: calc(4px + env(safe-area-inset-top)) 4px 0 20px;
 }
 .lightbox__count {
   font-size: 13px;
   letter-spacing: 0.16em;
+  font-variant-numeric: tabular-nums;
 }
-.lightbox__close {
-  width: 48px;
-  height: 48px;
+.lightbox__sep {
+  color: rgba(255, 255, 255, 0.6);
+}
+.lightbox__close,
+.lightbox__nav {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 52px;
+  height: 52px;
+  color: var(--white);
 }
 .lightbox__stage {
+  position: relative;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+  touch-action: pinch-zoom; /* 横・縦の指の動きはこのページで扱い、ピンチの拡大だけブラウザに任せる */
+}
+.lightbox__stage.is-zoomed {
+  touch-action: auto; /* 拡大している間は、拡大した写真の中を自由に動かせるように */
+}
+.lightbox__track {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.lightbox__slide {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 8px 12px;
 }
-.lightbox__photo {
-  width: 100%;
-  max-width: 460px;
+.lightbox__img {
+  display: block;
+  max-width: 100%;
   max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
 }
-.lightbox__photo .photo {
-  max-height: calc(100dvh - 190px);
-  background: transparent;
+.lightbox__placeholder {
+  width: min(100%, 420px);
 }
-.lightbox__photo .photo--placeholder {
-  background-image: radial-gradient(ellipse at 30% 25%, rgba(255, 255, 255, 0.28), transparent 55%), var(--ph);
-}
-.lightbox__arrows {
+.lightbox__bar {
+  flex: none;
   display: flex;
   justify-content: space-between;
-  padding: 0 12px calc(16px + env(safe-area-inset-bottom));
+  min-height: 60px;
+  padding: 0 8px calc(8px + env(safe-area-inset-bottom));
 }
-.lightbox__arrows button {
-  width: 56px;
-  height: 48px;
-  font-size: 30px;
-  line-height: 1;
-  color: var(--white);
+@media (min-width: 768px) {
+  .lightbox__slide {
+    padding: 16px 72px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lightbox {
+    animation: none;
+  }
 }
 
 /* 地図の余白に置く、選択中の都道府県の表示。枠・背景なし（文字だけ）。
@@ -1850,13 +1951,23 @@ img {
 .best-lists li:last-child {
   border-bottom: 1px solid var(--line);
 }
+/* 写真集の目次のように：番号・タイトル・BEST n / 5・上位の場所名、右に表紙写真 */
 .best-lists__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 84px;
-  padding: 16px 0;
+  display: grid;
+  grid-template-columns: 2.2em minmax(0, 1fr) 64px;
+  column-gap: 14px;
+  align-items: start;
+  min-height: 108px;
+  padding: 20px 0;
+}
+.best-lists__no {
+  padding-top: 2px;
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-weight: 300;
+  font-size: 24px;
+  line-height: 1;
+  font-variant-numeric: lining-nums;
+  color: var(--indigo);
 }
 .best-lists__text {
   display: flex;
@@ -1866,21 +1977,33 @@ img {
 }
 .best-lists__title {
   font-family: var(--font-serif);
-  font-size: 18px;
-  line-height: 1.5;
+  font-size: 19px;
+  line-height: 1.45;
   letter-spacing: 0.06em;
-  color: var(--text);
+  color: var(--indigo);
   overflow-wrap: anywhere;
 }
 .best-lists__count {
   font-size: 11px;
   letter-spacing: 0.2em;
-  color: var(--indigo-sub);
+  color: var(--indigo-label);
 }
-.best-lists__arrow {
-  flex: none;
-  font-size: 16px;
-  color: var(--indigo);
+.best-lists__names {
+  overflow: hidden;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-soft);
+}
+/* 表紙：写真が無いリストは、細い線の枠だけ */
+.best-lists__cover {
+  display: block;
+  aspect-ratio: 4 / 5;
+  border: 1px solid var(--line);
+}
+.best-lists__cover:has(.photo) {
+  border: 0;
 }
 .best-form {
   margin-top: 12px;
@@ -1988,7 +2111,7 @@ img {
 
 /* ---------- 16. 触れたときの反応・写真の読み込み・読みやすさ ----------
    足すのは「淡さ」と「時間」だけ。新しい色・影・グラデーションは使わない。
-   MY BEST（.page--best の中・編集画面の .best-field の中）は今回は変えないので、:not() で外している */
+   記録の編集画面の MY BEST 欄（.best-field の中）は変えないので、:not() で外している */
 :root {
   --press-control: 0.6; /* 文字・線のボタン、リンク、ナビ：押している間 */
   --press-fill: 0.8; /* 塗りのボタン：押している間 */
@@ -2003,27 +2126,32 @@ img {
     .btn-line, .btn-primary, .text-btn, .row-link, .backbar__btn, .head-link, .filter-toggle,
     .sort-toggle__btn, .tag--button, .tag__x, .shot-date, .trip-field__new, .photo-picker__add,
     .photo-picker__remove, .photo-picker__select, .dropdown__button, .dropdown__option, .index-row,
-    .facts dd a, .pop__cta, .pop__close, .detail__back, .lightbox__close, .lightbox__arrows button,
-    .bottom-nav__item, .bottom-nav__item--center .bottom-nav__icon,
-    .rcard, .entry, .year-entry, .gallery__item, .detail__hero-btn
-  ):not(.page--best *, .best-field *) {
+    .facts dd a, .pop__cta, .pop__close, .detail__back, .lightbox__close, .lightbox__nav,
+    .bottom-nav__item, .bottom-nav__item--center .bottom-nav__icon, .best-manage, .best-edit-toggle,
+    .best-item__remove, .best-item__move button, .best-pick__row, .journeys-link,
+    .rcard, .entry, .year-entry, .plate__btn, .detail__hero-btn, .best-lists__row, .best-plate__link, .journey, .stop
+  ):not(.best-field *) {
   transition: opacity 0.2s ease-out;
 }
 :is(
     .btn-line, .text-btn, .row-link, .backbar__btn, .head-link, .filter-toggle, .sort-toggle__btn,
     .tag--button, .tag__x, .shot-date, .trip-field__new, .photo-picker__add, .photo-picker__remove,
     .dropdown__button, .dropdown__option, .index-row, .facts dd a, .pop__cta, .pop__close,
-    .detail__back, .lightbox__close, .lightbox__arrows button, .bottom-nav__item:not(.bottom-nav__item--center)
-  ):not(.page--best *, .best-field *):not(:disabled):active {
+    .detail__back, .lightbox__close, .lightbox__nav, .bottom-nav__item:not(.bottom-nav__item--center),
+    .best-manage, .best-edit-toggle, .best-item__remove, .best-item__move button, .best-pick__row, .journeys-link
+  ):not(.best-field *):not(:disabled):active {
   opacity: var(--press-control);
   transition-duration: 0s;
 }
-:is(.btn-primary, .confirm__delete):not(.page--best *, .best-field *):not(:disabled):active,
+:is(.btn-primary, .confirm__delete):not(.best-field *):not(:disabled):active,
 .bottom-nav__item--center:active .bottom-nav__icon {
   opacity: var(--press-fill);
   transition-duration: 0s;
 }
-:is(.rcard, .entry, .year-entry, .gallery__item, .detail__hero-btn, .photo-picker__select):not(.page--best *, .best-field *):active {
+:is(
+    .rcard, .entry, .year-entry, .plate__btn, .detail__hero-btn, .photo-picker__select, .best-lists__row,
+    .best-plate__link, .journey, .stop
+  ):not(.best-field *):active {
   opacity: var(--press-surface);
   transition-duration: 0s;
 }
@@ -2034,21 +2162,23 @@ img {
       .btn-line, .text-btn, .row-link, .backbar__btn, .head-link, .filter-toggle, .sort-toggle__btn,
       .tag--button, .tag__x, .shot-date, .trip-field__new, .photo-picker__add, .photo-picker__remove,
       .dropdown__button, .index-row, .facts dd a, .pop__cta, .pop__close, .detail__back,
-      .lightbox__close, .lightbox__arrows button, .bottom-nav__item:not(.bottom-nav__item--center)
-    ):not(.page--best *, .best-field *):not(:disabled):hover {
+      .lightbox__close, .lightbox__nav, .bottom-nav__item:not(.bottom-nav__item--center),
+      .best-manage, .best-edit-toggle, .best-item__remove, .best-item__move button, .best-pick__row, .journeys-link
+    ):not(.best-field *):not(:disabled):hover {
     opacity: var(--hover-control);
   }
-  :is(.btn-primary, .confirm__delete):not(.page--best *, .best-field *):not(:disabled):hover,
+  :is(.btn-primary, .confirm__delete):not(.best-field *):not(:disabled):hover,
   .bottom-nav__item--center:hover .bottom-nav__icon {
     opacity: 0.9;
   }
   /* 写真のカード：写真はそのまま、場所名に細い下線（図録の索引のように） */
-  :is(.rcard, .entry):not(.page--best *, .best-field *):hover :is(.rcard__title, .entry__title) {
+  :is(.rcard, .entry, .best-lists__row, .best-plate__link, .journey, .stop):not(.best-field *):hover
+    :is(.rcard__title, .entry__title, .best-lists__title, .best-plate__title, .journey__title, .stop__title) {
     text-decoration: underline;
     text-decoration-thickness: 1px;
     text-underline-offset: 0.22em;
   }
-  :is(.year-entry, .gallery__item):not(.page--best *, .best-field *):hover {
+  :is(.year-entry, .plate__btn):not(.best-field *):hover {
     opacity: 0.9;
   }
 }
@@ -2064,13 +2194,13 @@ img {
 
 /* 小さな藍色の文字：背景の上でも読みやすい濃さに（色相はそのまま） */
 :is(
-    .eyebrow, .trip-head__label, .index-group__title, .gallery__label, .rcard__tags,
+    .eyebrow, .trip-head__label, .index-group__title, .rcard__tags,
     .month__num, .map-label__code, .pop__en, .pop__plate-label
-  ):not(.page--best *, .best-field *) {
+  ):not(.best-field *) {
   color: var(--indigo-label);
 }
 /* 入力欄の見本の文字（プレースホルダー）：薄すぎたので、入力した文字とは区別できる範囲で濃く */
-.input:not(.page--best *, .best-field *)::placeholder,
+.input:not(.best-field *)::placeholder,
 .dropdown__placeholder {
   color: rgba(51, 65, 85, 0.72);
 }
@@ -2080,4 +2210,288 @@ img {
   margin-left: 0.6em;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
+}
+
+/* ---------- 17. MY BEST（見る画面）・旅の記録 ---------- */
+/* 画面には出さず、読み上げだけに使う文字 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.empty__note {
+  max-width: 22em;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+/* MY BEST のリスト：BEST n / 5 と［編集］を1行に。編集の操作は、押したときだけ出す */
+.best-head__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+.best-head__bar .page-sub {
+  margin-top: 0;
+  font-variant-numeric: tabular-nums;
+}
+.best-edit-toggle {
+  min-height: 44px;
+  padding: 0 2px 0 12px;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  color: var(--indigo);
+}
+.best-edit-toggle[aria-pressed='true'] {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.35em;
+}
+.best-edit-toggle:disabled {
+  color: var(--text-soft);
+  cursor: default;
+}
+
+/* 見る画面：順位・写真・場所名が主役の図版 */
+.best-plates {
+  display: flex;
+  flex-direction: column;
+  gap: 52px;
+  margin: 8px 0 0;
+  padding: 0 var(--gutter);
+  list-style: none;
+}
+.best-plate__link {
+  display: block;
+}
+.best-plate__rank {
+  margin-bottom: 12px;
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-weight: 300;
+  font-size: 56px;
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+  font-variant-numeric: lining-nums;
+  color: var(--indigo);
+}
+.best-plate__title {
+  margin-top: 14px;
+  overflow-wrap: anywhere;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 21px;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
+  color: var(--indigo);
+}
+.best-plate--text .best-plate__title {
+  margin-top: 0;
+}
+.best-plate__meta {
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--text-soft);
+}
+.best-plate__date {
+  margin-left: 0.8em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* MY BEST の一番下：旅の記録への入口 */
+.journeys-link {
+  display: block;
+  margin: 48px var(--gutter) 0;
+  padding: 20px 0 22px;
+  border-top: 1px solid var(--indigo-sub);
+  border-bottom: 1px solid var(--line);
+}
+.journeys-link__label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--indigo-label);
+}
+.journeys-link__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 6px;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  color: var(--indigo);
+}
+.journeys-link__row > span:last-child {
+  font-family: var(--font-sans);
+  font-size: 16px;
+}
+.journeys-link__sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--text-soft);
+}
+
+/* 旅の記録（/trips）：旅ごとに、写真を大きく、文字は小さく添える */
+.journeys {
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.journey {
+  display: block;
+}
+.journey__caption {
+  padding: 14px var(--gutter) 0;
+}
+.journey--text .journey__caption {
+  margin: 0 var(--gutter);
+  padding: 16px 0 0;
+  border-top: 1px solid var(--line);
+}
+.journey__no {
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-size: 15px;
+  letter-spacing: 0.16em;
+  font-variant-numeric: lining-nums;
+  color: var(--indigo-label);
+}
+.journey__no span {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+.journey__title {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 1.35;
+  letter-spacing: 0.06em;
+  color: var(--indigo);
+}
+.journey__meta {
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-soft);
+}
+.journey__count {
+  margin-left: 1em;
+}
+.journey__places {
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.8;
+  letter-spacing: 0.06em;
+  color: var(--text-soft);
+}
+
+/* 旅の詳細（/trips/:tripId）：旅の名前・期間 → DAY ごとに、訪れた順 */
+.trip-cover {
+  padding-bottom: 28px;
+}
+.trip-cover .page-title {
+  overflow-wrap: anywhere;
+}
+.trip-cover__dates {
+  margin-top: 6px;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.trip-cover__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin-top: 6px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--text-soft);
+}
+.trip-days {
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+}
+.trip-day__head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin: 0 var(--gutter) 20px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--indigo-sub);
+  font-weight: 400;
+}
+.trip-day__no {
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-size: 16px;
+  letter-spacing: 0.18em;
+  font-variant-numeric: lining-nums;
+  color: var(--indigo-label);
+}
+.trip-day__date {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+  color: var(--indigo);
+}
+.trip-stops {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stop {
+  display: block;
+}
+.stop__caption {
+  padding: 12px var(--gutter) 0;
+}
+.stop--text .stop__caption {
+  padding-top: 0;
+}
+.stop__title {
+  overflow-wrap: anywhere;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
+  color: var(--indigo);
+}
+.stop__meta {
+  margin-top: 2px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--text-soft);
+}
+.stop__count {
+  margin-left: 0.8em;
+}
+
+/* 拡大表示の中のフォーカス枠：暗い背景でも見えるよう白で、画面の端に切れないよう内側に */
+.lightbox :focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: -6px;
 }
