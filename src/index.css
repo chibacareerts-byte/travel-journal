@@ -2495,3 +2495,232 @@ img {
   outline: 2px solid rgba(255, 255, 255, 0.85);
   outline-offset: -6px;
 }
+
+/* ---------- 18. HOME の年の選択・都道府県ページの年 ---------- */
+/* 地図の上：All / 2026 / 2025 …。年が増えたら、この行だけを横にスクロール（スクロールバーは出さない） */
+.year-filter {
+  display: flex;
+  gap: 0 18px;
+  margin: -6px 0 2px;
+  padding: 0 var(--gutter);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.year-filter::-webkit-scrollbar {
+  display: none;
+}
+.year-filter__opt {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 2px;
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-size: 19px;
+  letter-spacing: 0.06em;
+  font-variant-numeric: lining-nums;
+  color: var(--text-soft);
+}
+.year-filter__opt.is-on {
+  color: var(--indigo);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.4em;
+}
+/* 年を選んでいるとき：ポップアップの県名の下に、その年を小さく */
+.pop__year {
+  margin: -2px 0 6px;
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-size: 16px;
+  letter-spacing: 0.16em;
+  font-variant-numeric: lining-nums;
+  color: var(--indigo-label);
+}
+.pop__cta--stack {
+  border-bottom: 0;
+}
+/* 都道府県ページ：年を選んで来たときの「2026年の記録 ・ すべての年を見る」 */
+.scope-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 14px;
+  margin-top: 6px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--text-soft);
+}
+.scope-note__year {
+  margin-right: 1px;
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  font-variant-numeric: lining-nums;
+  color: var(--indigo);
+}
+.scope-note__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--indigo);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.3em;
+}
+
+/* ---------- 19. 年別詳細：月の選択 ----------
+   月見出しと同じ語彙（大きな月数字＋英語の月名）で、6列×2段。選んだ月は下に藍の線。記録の無い月は淡く、選べない */
+.month-picker {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: -8px var(--gutter) 44px;
+}
+.month-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-height: 78px;
+  padding: 12px 0 11px 2px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.month-pick:first-child {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: baseline;
+  min-height: 48px;
+  padding: 12px 2px 11px;
+  border-top: 1px solid var(--line);
+}
+.month-pick__all {
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: var(--text);
+}
+.month-pick__num {
+  font-family: 'Cormorant Garamond', var(--font-serif);
+  font-weight: 300;
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  font-variant-numeric: lining-nums;
+  color: var(--indigo);
+}
+.month-pick__en {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--indigo-label);
+}
+.month-pick__count {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-soft);
+}
+.month-pick.is-on {
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--indigo);
+}
+.month-pick.is-on .month-pick__count,
+.month-pick.is-on .month-pick__all {
+  color: var(--indigo);
+}
+.month-pick:disabled {
+  cursor: default;
+}
+.month-pick:disabled > span {
+  opacity: 0.35;
+}
+@media (hover: hover) and (pointer: fine) {
+  .month-pick:not(:disabled):not(.is-on):hover .month-pick__num {
+    opacity: 0.72;
+  }
+}
+.month-pick:not(:disabled):active {
+  opacity: var(--press-control);
+}
+/* 月を切り替えたとき、記録が静かに入れ替わる */
+.month-view {
+  animation: month-in 0.28s ease-out both;
+}
+@keyframes month-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .month-view {
+    animation: none;
+  }
+}
+
+/* ---------- 20. 記録一覧（/records）：暗い展示空間に、いつもの明るい記録カードを並べる ----------
+   このページだけ（body:has で、ページの外側・左右の余白もそろえる）。ほかのページは今まで通り明るいまま。
+   暗くするのは「カードの外側」だけ：見出し・件数・MY BEST への導線・並べ替え・旅の見出し（TRIP）・空のときの表示。
+   カードの中（白い背景・2px の枠・写真と文字の境界線・場所名・都道府県・日付・タグ）は、6. の元の配色のまま変えない。
+   背景色の候補（開発中は /records?ink=a・b・c で見比べられる。カードの中はどの候補でも同じ）：
+     A. Deep Ink    #0E1822 … いちばん暗く、黒に近い。写真は最も際立つが、少し冷たい
+     B. Indigo Ink  #111E2D … 採用。#1E4B7A と同じ色相（211°）を暗くした色。拡大表示の背景 #0E1B2B とも同じ系統
+     C. Blue Slate  #202932 … 灰みが強く明るめ。やわらかいが、藍の印象は弱い
+   カードの外の文字の色はどの候補でも同じ（見出し 14:1・件数や日付 7.8:1・藍の文字 8.5:1。WCAG AA を十分に満たす） */
+body:has(.page--records) {
+  --rec-bg: #111e2d;
+  --rec-line: #34465a; /* 並べ替えの枠・ページの左右の線（カードの枠ではない） */
+  --rec-text: #e8edf3;
+  --rec-soft: #a5b2c0;
+  --rec-accent: #9cbcde;
+  background: var(--rec-bg);
+}
+body:has(.page--records[data-ink='a']) {
+  --rec-bg: #0e1822;
+  --rec-line: #324252;
+}
+body:has(.page--records[data-ink='c']) {
+  --rec-bg: #202932;
+  --rec-line: #43515f;
+}
+body:has(.page--records) .app {
+  background: var(--rec-bg);
+  border-color: var(--rec-line);
+}
+/* カードの外側の文字 */
+.page--records .page-head .eyebrow,
+.page--records .trip-head__label,
+.page--records .head-link {
+  color: var(--rec-accent);
+}
+.page--records .page-head .page-title,
+.page--records .trip-head__title {
+  color: var(--rec-text);
+}
+.page--records .page-head .page-sub,
+.page--records .trip-head__dates,
+.page--records .empty {
+  color: var(--rec-soft);
+}
+/* 並べ替え（新しい順・古い順） */
+.page--records .sort-toggle {
+  border-color: var(--rec-line);
+}
+.page--records .sort-toggle__btn {
+  background: transparent;
+  color: var(--rec-soft);
+}
+.page--records .sort-toggle__btn + .sort-toggle__btn {
+  border-left-color: var(--rec-line);
+}
+.page--records .sort-toggle__btn.is-active {
+  background: var(--rec-accent);
+  color: var(--rec-bg);
+}
+/* 空・読み込み失敗のときのボタン（カードの外） */
+.page--records .empty .btn-line {
+  border-color: var(--rec-accent);
+  color: var(--rec-accent);
+}
+/* フォーカス枠は要素の外側（暗い背景の上）に出るので、明るい藍に */
+.page--records :focus-visible,
+.page--records .rcard:focus-visible {
+  outline-color: var(--rec-accent);
+}

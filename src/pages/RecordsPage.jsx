@@ -3,8 +3,11 @@
 //   旅に入っていない記録も、今まで通り日付の位置に並ぶ（見出しなし）。
 // 並べ替え（新しい順・古い順）と旅のまとめは、取得済みの records・trips をブラウザ側で並べるだけ。
 // Supabase への追加通信は行わない。旅の機能が使えない（trips.sql 未実行）ときは、すべて見出しなしで並ぶ。
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+//
+// 背景：写真が浮かび上がるよう、このページだけ深い藍（Deep Ink 系）にする（色は index.css の「18.」）。
+//   開発中（npm run dev）だけ、/records?ink=a・b・c で背景色の候補を切り替えて見比べられる（本番では常に仮採用の色）。
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import DateSortToggle from '../components/DateSortToggle'
 import RecordCard from '../components/RecordCard'
 import RecordsGate, { EmptyRecords } from '../components/RecordsGate'
@@ -16,6 +19,18 @@ const NO_TRIPS = []
 export default function RecordsPage() {
   const { records, trips, tripsReady, loading, error } = useRecords()
   const [order, setOrder] = useState('newest') // 'newest' | 'oldest'（初期は新しい順）
+  const [searchParams] = useSearchParams()
+  const inkParam = import.meta.env.DEV ? searchParams.get('ink') : null
+  const ink = inkParam === 'a' || inkParam === 'b' || inkParam === 'c' ? inkParam : undefined
+
+  // スマホのブラウザのアドレスバーの色も、このページの背景に合わせる（ほかのページへ移ったら元に戻す）
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (!meta) return undefined
+    const before = meta.getAttribute('content')
+    meta.setAttribute('content', getComputedStyle(document.body).backgroundColor)
+    return () => meta.setAttribute('content', before)
+  }, [ink])
 
   // records はもともと新しい順（RecordsContext）。旅ごとにまとめ、旅・旅の中の記録を order の向きに並べる
   // （安定ソートなので、同じ訪問日どうしはいまの表示順のまま）。records・trips・order が変わったときだけ計算し直す
@@ -34,7 +49,7 @@ export default function RecordsPage() {
   }, [sections])
 
   return (
-    <div className="page page--records">
+    <div className="page page--records" data-ink={ink}>
       <header className="page-head">
         <p className="eyebrow">All Records</p>
         <h1 className="page-title">記録</h1>

@@ -35,7 +35,8 @@ function prefectureAt(x, y) {
   return null
 }
 
-export default function JapanMap({ visitedIds, onSelect, onPreview, selectedId = null, previewId = null }) {
+// visitedLabel：訪問済みの県の読み上げに添える言葉（年を選んでいるときは「2026年に訪問」など）
+export default function JapanMap({ visitedIds, onSelect, onPreview, selectedId = null, previewId = null, visitedLabel = '訪問済み' }) {
   const wrapRef = useRef(null)
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
@@ -174,7 +175,7 @@ export default function JapanMap({ visitedIds, onSelect, onPreview, selectedId =
               className={(visited ? 'pref pref--visited' : 'pref') + (p.id === 47 ? ' pref--inset' : '')}
               role="button"
               tabIndex={0}
-              aria-label={`${p.name}${visited ? '（訪問済み）' : ''}`}
+              aria-label={`${p.name}${visited ? `（${visitedLabel}）` : ''}`}
               onClick={() => select(p.id)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
